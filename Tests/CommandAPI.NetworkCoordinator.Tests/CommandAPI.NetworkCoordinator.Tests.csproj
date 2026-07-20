@@ -28,14 +28,11 @@
       Include="..\..\Data\Scripts\CommandAPI\Core\**\*.cs"
       Link="Core\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile
-      Include="..\..\Data\Scripts\CommandAPI\Networking\CommandMessageCodec.cs"
-      Link="Networking\CommandMessageCodec.cs" />
+      Include="..\..\Data\Scripts\CommandAPI\Networking\*.cs"
+      Link="Networking\%(Filename)%(Extension)" />
     <Compile
-      Include="..\..\Data\Scripts\CommandAPI\Networking\CommandRequestMessage.cs"
-      Link="Networking\CommandRequestMessage.cs" />
-    <Compile
-      Include="..\..\Data\Scripts\CommandAPI\Networking\CommandResultMessage.cs"
-      Link="Networking\CommandResultMessage.cs" />
+      Include="..\..\Data\Scripts\CommandAPI\Libraries\Mz.Networking\Core\*.cs"
+      Link="Libraries\Mz.Networking\%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>
