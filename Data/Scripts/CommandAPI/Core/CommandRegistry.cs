@@ -21,6 +21,23 @@ namespace MarcoZechner.CommandApi.Core
             get { return _definitions.Count; }
         }
 
+        public CommandDefinition[] GetDefinitions()
+        {
+            var copy =
+                new CommandDefinition[_definitions.Count];
+
+            for (
+                int index = 0;
+                index < _definitions.Count;
+                index++
+            )
+            {
+                copy[index] = _definitions[index];
+            }
+
+            return copy;
+        }
+
         public bool TryRegister(
             CommandDefinition definition,
             out string errorMessage
