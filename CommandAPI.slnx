@@ -8,6 +8,7 @@
     <Project Path="Tests/CommandAPI.Core.Tests/CommandAPI.Core.Tests.csproj" />
     <Project Path="Tests/CommandAPI.Execution.Tests/CommandAPI.Execution.Tests.csproj" />
     <Project Path="Tests/CommandAPI.Registry.Tests/CommandAPI.Registry.Tests.csproj" />
+    <Project Path="Tests/CommandAPI.NetworkProtocol.Tests/CommandAPI.NetworkProtocol.Tests.csproj" />
     <Project Path="Tests/CommandAPI.VanillaChat.Tests/CommandAPI.VanillaChat.Tests.csproj" />
   </Folder>
 </Solution>
