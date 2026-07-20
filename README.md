@@ -57,3 +57,30 @@ runs the xUnit test projects.
 `dotnet build Data\CommandAPI.csproj --nologo`
 
 builds the Space Engineers mod.
+
+## External API collision smoke test
+
+Two standalone smoke consumers are included under `SmokeMods`:
+
+- `CommandApiSmokeAlpha`
+- `CommandApiSmokeBeta`
+
+Both always register deterministic qualified commands:
+
+- `/cmd smoke.alpha`
+- `/cmd smoke.beta`
+
+Both also attempt to register `/cmd smoke`. The first loaded consumer owns that
+short convenience name. The losing consumer keeps its qualified command and
+logs the collision instead of overriding the winner. When the winner unloads
+and releases the name, the other consumer may claim it on a later registration
+attempt.
+
+Run `sync smoke consumers.bat` while Space Engineers is closed to materialize
+both local mods next to CommandAPI in the Space Engineers `Mods` directory.
+Load CommandAPI and both smoke mods, then run:
+
+- `/cmd smoke`
+- `/cmd smoke.alpha`
+- `/cmd smoke.beta`
+- `/cmd help`
