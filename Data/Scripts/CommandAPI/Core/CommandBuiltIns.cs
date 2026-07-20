@@ -21,22 +21,34 @@ namespace MarcoZechner.CommandApi.Core
                     nameof(statusProvider)
                 );
 
+            string[] builtInNames =
+            {
+                "help",
+                "ping",
+                "whoami",
+                "status"
+            };
+
             CommandDefinition existing;
 
-            if (registry.TryResolve("help", out existing))
+            for (
+                int index = 0;
+                index < builtInNames.Length;
+                index++
+            )
             {
-                errorMessage =
-                    "Command name 'help' is already registered.";
+                string name =
+                    builtInNames[index];
 
-                return false;
-            }
+                if (registry.TryResolve(name, out existing))
+                {
+                    errorMessage =
+                        "Command name '"
+                        + name
+                        + "' is already registered.";
 
-            if (registry.TryResolve("status", out existing))
-            {
-                errorMessage =
-                    "Command name 'status' is already registered.";
-
-                return false;
+                    return false;
+                }
             }
 
             var help =
@@ -63,6 +75,34 @@ namespace MarcoZechner.CommandApi.Core
                     }
                 );
 
+            var ping =
+                new CommandDefinition(
+                    "ping",
+                    new string[0],
+                    "Tests CommandAPI request execution.",
+                    "Confirms that a command request reached the authoritative server.",
+                    "ping",
+                    "CommandAPI",
+                    CommandExecutionLocation.Server,
+                    0,
+                    OwnerId,
+                    BuildPingResult
+                );
+
+            var whoami =
+                new CommandDefinition(
+                    "whoami",
+                    new string[0],
+                    "Reports your server-derived identity.",
+                    "Reports requester identity and permission data derived from trusted server state.",
+                    "whoami",
+                    "CommandAPI",
+                    CommandExecutionLocation.Server,
+                    0,
+                    OwnerId,
+                    BuildWhoAmIResult
+                );
+
             var status =
                 new CommandDefinition(
                     "status",
@@ -87,14 +127,106 @@ namespace MarcoZechner.CommandApi.Core
                     }
                 );
 
-            if (!registry.TryRegister(help, out errorMessage))
-                return false;
+            CommandDefinition[] definitions =
+            {
+                help,
+                ping,
+                whoami,
+                status
+            };
 
-            if (!registry.TryRegister(status, out errorMessage))
-                return false;
+            for (
+                int index = 0;
+                index < definitions.Length;
+                index++
+            )
+            {
+                if (
+                    !registry.TryRegister(
+                        definitions[index],
+                        out errorMessage
+                    )
+                )
+                {
+                    return false;
+                }
+            }
 
             errorMessage = null;
             return true;
+        }
+
+        private static CommandResult BuildPingResult(
+            CommandExecutionContext context,
+            CommandInput input
+        )
+        {
+            if (input.Arguments.Length != 0)
+            {
+                return Failure(
+                    "Invalid ping request",
+                    "Ping does not accept arguments.",
+                    "/cmd ping"
+                );
+            }
+
+            return new CommandResult(
+                true,
+                "Pong",
+                "CommandAPI request completed.",
+                new[]
+                {
+                    "Request ID: " + context.RequestId,
+                    "Executed on: "
+                        + (
+                            context.IsServer
+                                ? "server"
+                                : "client"
+                        )
+                },
+                CommandSeverity.Success,
+                null
+            );
+        }
+
+        private static CommandResult BuildWhoAmIResult(
+            CommandExecutionContext context,
+            CommandInput input
+        )
+        {
+            if (input.Arguments.Length != 0)
+            {
+                return Failure(
+                    "Invalid whoami request",
+                    "Whoami does not accept arguments.",
+                    "/cmd whoami"
+                );
+            }
+
+            return new CommandResult(
+                true,
+                "Who am I",
+                "Identity resolved by the server.",
+                new[]
+                {
+                    "Display name: "
+                        + context.RequesterDisplayName,
+                    "Steam ID: "
+                        + context.RequesterSteamId,
+                    "Identity ID: "
+                        + context.RequesterIdentityId,
+                    "Permission level: "
+                        + context.PermissionLevel,
+                    "Executed on: "
+                        + (
+                            context.IsServer
+                                ? "server"
+                                : "client"
+                        )
+                },
+                CommandSeverity.Information,
+                null
+            );
         }
 
         private static CommandResult BuildHelpResult(

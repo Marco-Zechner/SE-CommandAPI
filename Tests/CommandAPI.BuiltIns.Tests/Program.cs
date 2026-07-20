@@ -123,15 +123,6 @@ namespace MarcoZechner.CommandApi.Tests
             var registry =
                 new CommandRegistry();
 
-            Register(
-                registry,
-                Definition(
-                    "ping",
-                    new string[0],
-                    0,
-                    CommandExecutionLocation.Server
-                )
-            );
 
             Register(
                 registry,
@@ -189,7 +180,7 @@ namespace MarcoZechner.CommandApi.Tests
             );
 
             Equal(
-                "Available commands: 3",
+                "Available commands: 4",
                 result.Summary,
                 "summary"
             );
@@ -197,8 +188,9 @@ namespace MarcoZechner.CommandApi.Tests
             SequenceEqual(
                 new[]
                 {
-                    "ping - ping description",
                     "help - Lists available commands.",
+                    "ping - Tests CommandAPI request execution.",
+                    "whoami - Reports your server-derived identity.",
                     "status - Reports CommandAPI status."
                 },
                 result.DetailLines,
@@ -276,15 +268,6 @@ namespace MarcoZechner.CommandApi.Tests
             var registry =
                 new CommandRegistry();
 
-            Register(
-                registry,
-                Definition(
-                    "ping",
-                    new string[0],
-                    0,
-                    CommandExecutionLocation.Server
-                )
-            );
 
             RegisterBuiltIns(registry);
 
@@ -326,7 +309,7 @@ namespace MarcoZechner.CommandApi.Tests
                 {
                     "CommandAPI version: 0.1.0",
                     "Protocol version: 1.0.0",
-                    "Registered commands: 4",
+                    "Registered commands: 5",
                     "Network: Not initialized",
                     "RichHudChat: unavailable",
                     "Presentation: VanillaChat",
