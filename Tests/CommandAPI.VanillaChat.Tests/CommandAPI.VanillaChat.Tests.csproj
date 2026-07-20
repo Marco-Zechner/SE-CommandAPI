@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>12</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile
+      Include="..\..\Data\Scripts\CommandAPI\Core\**\*.cs"
+      Link="Core\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile
+      Include="..\..\Data\Scripts\CommandAPI\Chat\**\*.cs"
+      Link="Chat\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>
