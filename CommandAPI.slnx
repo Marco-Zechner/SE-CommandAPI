@@ -2,4 +2,7 @@
   <Folder Name="/Data/">
     <Project Path="Data/CommandAPI.csproj" />
   </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="Tests/CommandAPI.Core.Tests/CommandAPI.Core.Tests.csproj" />
+  </Folder>
 </Solution>
