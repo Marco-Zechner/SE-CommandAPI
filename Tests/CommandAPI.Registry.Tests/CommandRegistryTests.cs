@@ -1,73 +1,14 @@
 using System;
 using System.Collections.Generic;
 using MarcoZechner.CommandApi.Core;
+using Xunit;
 
 namespace MarcoZechner.CommandApi.Tests
 {
-    internal static class Program
+    public sealed class CommandRegistryTests
     {
-        private static int Main()
-        {
-            var tests =
-                new List<TestCase>
-                {
-                    new TestCase(
-                        "Resolve canonical name case-insensitively",
-                        ResolveCanonicalNameCaseInsensitively
-                    ),
-                    new TestCase(
-                        "Resolve alias case-insensitively",
-                        ResolveAliasCaseInsensitively
-                    ),
-                    new TestCase(
-                        "Reject duplicate canonical name",
-                        RejectDuplicateCanonicalName
-                    ),
-                    new TestCase(
-                        "Reject alias collision",
-                        RejectAliasCollision
-                    ),
-                    new TestCase(
-                        "Handler receives trusted context and returns structured result",
-                        HandlerReceivesTrustedContextAndReturnsStructuredResult
-                    )
-                };
-
-            int failures = 0;
-
-            foreach (TestCase test in tests)
-            {
-                try
-                {
-                    test.Action();
-                    Console.WriteLine("PASS " + test.Name);
-                }
-                catch (Exception exception)
-                {
-                    failures++;
-
-                    Console.WriteLine(
-                        "FAIL "
-                        + test.Name
-                        + ": "
-                        + exception.Message
-                    );
-                }
-            }
-
-            Console.WriteLine(
-                failures == 0
-                    ? "OK registry tests passed: " + tests.Count
-                    : "FAILED registry tests: "
-                        + failures
-                        + " of "
-                        + tests.Count
-            );
-
-            return failures == 0 ? 0 : 1;
-        }
-
-        private static void ResolveCanonicalNameCaseInsensitively()
+        [Fact]
+        public void ResolveCanonicalNameCaseInsensitively()
         {
             var registry =
                 new CommandRegistry();
@@ -103,7 +44,8 @@ namespace MarcoZechner.CommandApi.Tests
             );
         }
 
-        private static void ResolveAliasCaseInsensitively()
+        [Fact]
+        public void ResolveAliasCaseInsensitively()
         {
             var registry =
                 new CommandRegistry();
@@ -139,7 +81,8 @@ namespace MarcoZechner.CommandApi.Tests
             );
         }
 
-        private static void RejectDuplicateCanonicalName()
+        [Fact]
+        public void RejectDuplicateCanonicalName()
         {
             var registry =
                 new CommandRegistry();
@@ -179,7 +122,8 @@ namespace MarcoZechner.CommandApi.Tests
             );
         }
 
-        private static void RejectAliasCollision()
+        [Fact]
+        public void RejectAliasCollision()
         {
             var registry =
                 new CommandRegistry();
@@ -219,7 +163,8 @@ namespace MarcoZechner.CommandApi.Tests
             );
         }
 
-        private static void HandlerReceivesTrustedContextAndReturnsStructuredResult()
+        [Fact]
+        public void HandlerReceivesTrustedContextAndReturnsStructuredResult()
         {
             CommandExecutionContext observedContext = null;
             CommandInput observedInput = null;
@@ -466,22 +411,6 @@ namespace MarcoZechner.CommandApi.Tests
                     + ", actual "
                     + actual
                 );
-            }
-        }
-
-        private sealed class TestCase
-        {
-            public string Name { get; }
-
-            public Action Action { get; }
-
-            public TestCase(
-                string name,
-                Action action
-            )
-            {
-                Name = name;
-                Action = action;
             }
         }
     }

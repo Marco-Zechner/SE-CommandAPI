@@ -1,37 +1,43 @@
 # CommandAPI
 
-A Rich HUD Master command console and command registration framework for
+CommandAPI is a command framework for Space Engineers.
 
-Space Engineers.
+## Current runtime
 
-## Runtime dependency
+The current development slice provides:
 
-Add Rich HUD Master to the world:
+- vanilla chat input through `/cmd`;
+- structured command results;
+- case-insensitive command names and aliases;
+- permission and execution-location validation;
+- built-in `help`, `ping`, `whoami`, and `status` commands;
+- requester identity and permission data derived from Space Engineers.
 
-- Workshop item: `1965654081`
+Remote-client request and response transport is not implemented yet. Server
+commands currently work for single-player and the listen-server host.
 
-The Rich HUD Client and Shared source is vendored from:
+RichHudChat is planned as a separate optional input and presentation provider.
+CommandAPI does not contain RichHudFramework and has no Rich HUD Master runtime
+dependency.
 
-- repository: `ZachHembree/RichHudFramework.Client`
+## In-game commands
 
-- commit: `058a31e3431a9c0df0778770d4747992f06de175`
+- `/cmd help`
+- `/cmd ping`
+- `/cmd whoami`
+- `/cmd status`
 
-- commit date: `2025-12-11`
+Malformed and unknown commands are suppressed from global chat and reported to
+the requester through vanilla chat output.
 
-
-## Current progress
-
-When registration succeeds, a temporary notification appears:
-
-`CommandAPI connected to Rich HUD Master.`
-
-The notification is bootstrap diagnostics and will be removed after the integration is verified.
-
-## Build without Space Engineers
+## Build and test
 
 From the mod root:
 
-`dotnet build Data\\CommandAPI.csproj --nologo`
+`dotnet test CommandAPI.slnx --nologo`
 
-should finish without errors.
+runs the xUnit test projects.
 
+`dotnet build Data\CommandAPI.csproj --nologo`
+
+builds the Space Engineers mod.

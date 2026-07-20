@@ -1,69 +1,14 @@
 using System;
 using System.Collections.Generic;
 using MarcoZechner.CommandApi.Core;
+using Xunit;
 
 namespace MarcoZechner.CommandApi.Tests
 {
-    internal static class Program
+    public sealed class CommandBuiltInsTests
     {
-        private static int Main()
-        {
-            var tests =
-                new List<TestCase>
-                {
-                    new TestCase(
-                        "Enumerate definitions in registration order",
-                        EnumerateDefinitionsInRegistrationOrder
-                    ),
-                    new TestCase(
-                        "Help lists only executable visible commands",
-                        HelpListsOnlyExecutableVisibleCommands
-                    ),
-                    new TestCase(
-                        "Help resolves aliases to detailed metadata",
-                        HelpResolvesAliasesToDetailedMetadata
-                    ),
-                    new TestCase(
-                        "Status uses live registry count and provider snapshot",
-                        StatusUsesLiveRegistryCountAndProviderSnapshot
-                    )
-                };
-
-            int failures = 0;
-
-            foreach (TestCase test in tests)
-            {
-                try
-                {
-                    test.Action();
-                    Console.WriteLine("PASS " + test.Name);
-                }
-                catch (Exception exception)
-                {
-                    failures++;
-
-                    Console.WriteLine(
-                        "FAIL "
-                        + test.Name
-                        + ": "
-                        + exception.Message
-                    );
-                }
-            }
-
-            Console.WriteLine(
-                failures == 0
-                    ? "OK built-in tests passed: " + tests.Count
-                    : "FAILED built-in tests: "
-                        + failures
-                        + " of "
-                        + tests.Count
-            );
-
-            return failures == 0 ? 0 : 1;
-        }
-
-        private static void EnumerateDefinitionsInRegistrationOrder()
+        [Fact]
+        public void EnumerateDefinitionsInRegistrationOrder()
         {
             var registry =
                 new CommandRegistry();
@@ -118,7 +63,8 @@ namespace MarcoZechner.CommandApi.Tests
             );
         }
 
-        private static void HelpListsOnlyExecutableVisibleCommands()
+        [Fact]
+        public void HelpListsOnlyExecutableVisibleCommands()
         {
             var registry =
                 new CommandRegistry();
@@ -198,7 +144,8 @@ namespace MarcoZechner.CommandApi.Tests
             );
         }
 
-        private static void HelpResolvesAliasesToDetailedMetadata()
+        [Fact]
+        public void HelpResolvesAliasesToDetailedMetadata()
         {
             var registry =
                 new CommandRegistry();
@@ -263,7 +210,8 @@ namespace MarcoZechner.CommandApi.Tests
             );
         }
 
-        private static void StatusUsesLiveRegistryCountAndProviderSnapshot()
+        [Fact]
+        public void StatusUsesLiveRegistryCountAndProviderSnapshot()
         {
             var registry =
                 new CommandRegistry();
@@ -465,22 +413,6 @@ namespace MarcoZechner.CommandApi.Tests
                     + ", actual "
                     + actual
                 );
-            }
-        }
-
-        private sealed class TestCase
-        {
-            public string Name { get; }
-
-            public Action Action { get; }
-
-            public TestCase(
-                string name,
-                Action action
-            )
-            {
-                Name = name;
-                Action = action;
             }
         }
     }

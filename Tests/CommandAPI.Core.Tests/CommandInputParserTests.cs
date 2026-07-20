@@ -1,77 +1,14 @@
 using System;
 using System.Collections.Generic;
 using MarcoZechner.CommandApi.Core;
+using Xunit;
 
 namespace MarcoZechner.CommandApi.Tests
 {
-    internal static class Program
+    public sealed class CommandInputParserTests
     {
-        private static int Main()
-        {
-            var tests =
-                new List<TestCase>
-                {
-                    new TestCase(
-                        "Parse quoted arguments and preserve casing",
-                        ParseQuotedArgumentsAndPreserveCasing
-                    ),
-                    new TestCase(
-                        "Ignore unrelated chat",
-                        IgnoreUnrelatedChat
-                    ),
-                    new TestCase(
-                        "Reject prefix without command",
-                        RejectPrefixWithoutCommand
-                    ),
-                    new TestCase(
-                        "Reject unterminated quote",
-                        RejectUnterminatedQuote
-                    ),
-                    new TestCase(
-                        "Require prefix boundary",
-                        RequirePrefixBoundary
-                    ),
-                    new TestCase(
-                        "Protect stored arguments from mutation",
-                        ProtectStoredArgumentsFromMutation
-                    )
-                };
-
-            int failures = 0;
-
-            foreach (TestCase test in tests)
-            {
-                try
-                {
-                    test.Action();
-                    Console.WriteLine("PASS " + test.Name);
-                }
-                catch (Exception exception)
-                {
-                    failures++;
-
-                    Console.WriteLine(
-                        "FAIL "
-                        + test.Name
-                        + ": "
-                        + exception.Message
-                    );
-                }
-            }
-
-            Console.WriteLine(
-                failures == 0
-                    ? "OK command core tests passed: " + tests.Count
-                    : "FAILED command core tests: "
-                        + failures
-                        + " of "
-                        + tests.Count
-            );
-
-            return failures == 0 ? 0 : 1;
-        }
-
-        private static void ParseQuotedArgumentsAndPreserveCasing()
+        [Fact]
+        public void ParseQuotedArgumentsAndPreserveCasing()
         {
             CommandParseResult result =
                 CommandInputParser.Parse(
@@ -97,7 +34,8 @@ namespace MarcoZechner.CommandApi.Tests
             );
         }
 
-        private static void IgnoreUnrelatedChat()
+        [Fact]
+        public void IgnoreUnrelatedChat()
         {
             CommandParseResult result =
                 CommandInputParser.Parse(
@@ -111,7 +49,8 @@ namespace MarcoZechner.CommandApi.Tests
             );
         }
 
-        private static void RejectPrefixWithoutCommand()
+        [Fact]
+        public void RejectPrefixWithoutCommand()
         {
             CommandParseResult result =
                 CommandInputParser.Parse(
@@ -131,7 +70,8 @@ namespace MarcoZechner.CommandApi.Tests
             );
         }
 
-        private static void RejectUnterminatedQuote()
+        [Fact]
+        public void RejectUnterminatedQuote()
         {
             CommandParseResult result =
                 CommandInputParser.Parse(
@@ -151,7 +91,8 @@ namespace MarcoZechner.CommandApi.Tests
             );
         }
 
-        private static void RequirePrefixBoundary()
+        [Fact]
+        public void RequirePrefixBoundary()
         {
             CommandParseResult result =
                 CommandInputParser.Parse(
@@ -165,7 +106,8 @@ namespace MarcoZechner.CommandApi.Tests
             );
         }
 
-        private static void ProtectStoredArgumentsFromMutation()
+        [Fact]
+        public void ProtectStoredArgumentsFromMutation()
         {
             var input =
                 new CommandInput(
@@ -225,22 +167,6 @@ namespace MarcoZechner.CommandApi.Tests
                     actual[index],
                     label + "[" + index + "]"
                 );
-            }
-        }
-
-        private sealed class TestCase
-        {
-            public string Name { get; }
-
-            public Action Action { get; }
-
-            public TestCase(
-                string name,
-                Action action
-            )
-            {
-                Name = name;
-                Action = action;
             }
         }
     }

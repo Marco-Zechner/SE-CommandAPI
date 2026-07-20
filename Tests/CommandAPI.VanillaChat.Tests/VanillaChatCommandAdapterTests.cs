@@ -2,77 +2,14 @@ using System;
 using System.Collections.Generic;
 using MarcoZechner.CommandApi.Chat;
 using MarcoZechner.CommandApi.Core;
+using Xunit;
 
 namespace MarcoZechner.CommandApi.Tests
 {
-    internal static class Program
+    public sealed class VanillaChatCommandAdapterTests
     {
-        private static int Main()
-        {
-            var tests =
-                new List<TestCase>
-                {
-                    new TestCase(
-                        "Leave unrelated chat untouched",
-                        LeaveUnrelatedChatUntouched
-                    ),
-                    new TestCase(
-                        "Suppress and execute recognized command",
-                        SuppressAndExecuteRecognizedCommand
-                    ),
-                    new TestCase(
-                        "Suppress malformed command and show parse error",
-                        SuppressMalformedCommandAndShowParseError
-                    ),
-                    new TestCase(
-                        "Format structured execution failure",
-                        FormatStructuredExecutionFailure
-                    ),
-                    new TestCase(
-                        "Bound verbose result output",
-                        BoundVerboseResultOutput
-                    ),
-                    new TestCase(
-                        "Dispose unsubscribes chat handler",
-                        DisposeUnsubscribesChatHandler
-                    )
-                };
-
-            int failures = 0;
-
-            foreach (TestCase test in tests)
-            {
-                try
-                {
-                    test.Action();
-                    Console.WriteLine("PASS " + test.Name);
-                }
-                catch (Exception exception)
-                {
-                    failures++;
-
-                    Console.WriteLine(
-                        "FAIL "
-                        + test.Name
-                        + ": "
-                        + exception.Message
-                    );
-                }
-            }
-
-            Console.WriteLine(
-                failures == 0
-                    ? "OK vanilla chat tests passed: " + tests.Count
-                    : "FAILED vanilla chat tests: "
-                        + failures
-                        + " of "
-                        + tests.Count
-            );
-
-            return failures == 0 ? 0 : 1;
-        }
-
-        private static void LeaveUnrelatedChatUntouched()
+        [Fact]
+        public void LeaveUnrelatedChatUntouched()
         {
             var input =
                 new FakeChatInput();
@@ -128,7 +65,8 @@ namespace MarcoZechner.CommandApi.Tests
             adapter.Dispose();
         }
 
-        private static void SuppressAndExecuteRecognizedCommand()
+        [Fact]
+        public void SuppressAndExecuteRecognizedCommand()
         {
             var registry =
                 new CommandRegistry();
@@ -223,7 +161,8 @@ namespace MarcoZechner.CommandApi.Tests
             adapter.Dispose();
         }
 
-        private static void SuppressMalformedCommandAndShowParseError()
+        [Fact]
+        public void SuppressMalformedCommandAndShowParseError()
         {
             var input =
                 new FakeChatInput();
@@ -281,7 +220,8 @@ namespace MarcoZechner.CommandApi.Tests
             adapter.Dispose();
         }
 
-        private static void FormatStructuredExecutionFailure()
+        [Fact]
+        public void FormatStructuredExecutionFailure()
         {
             var input =
                 new FakeChatInput();
@@ -330,7 +270,8 @@ namespace MarcoZechner.CommandApi.Tests
             adapter.Dispose();
         }
 
-        private static void BoundVerboseResultOutput()
+        [Fact]
+        public void BoundVerboseResultOutput()
         {
             var registry =
                 new CommandRegistry();
@@ -416,7 +357,8 @@ namespace MarcoZechner.CommandApi.Tests
             adapter.Dispose();
         }
 
-        private static void DisposeUnsubscribesChatHandler()
+        [Fact]
+        public void DisposeUnsubscribesChatHandler()
         {
             var input =
                 new FakeChatInput();
@@ -672,22 +614,6 @@ namespace MarcoZechner.CommandApi.Tests
             {
                 Author = author;
                 Message = message;
-            }
-        }
-
-        private sealed class TestCase
-        {
-            public string Name { get; }
-
-            public Action Action { get; }
-
-            public TestCase(
-                string name,
-                Action action
-            )
-            {
-                Name = name;
-                Action = action;
             }
         }
     }

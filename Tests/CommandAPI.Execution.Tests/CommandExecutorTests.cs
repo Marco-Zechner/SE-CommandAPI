@@ -1,73 +1,14 @@
 using System;
 using System.Collections.Generic;
 using MarcoZechner.CommandApi.Core;
+using Xunit;
 
 namespace MarcoZechner.CommandApi.Tests
 {
-    internal static class Program
+    public sealed class CommandExecutorTests
     {
-        private static int Main()
-        {
-            var tests =
-                new List<TestCase>
-                {
-                    new TestCase(
-                        "Execute registered command",
-                        ExecuteRegisteredCommand
-                    ),
-                    new TestCase(
-                        "Return structured unknown-command failure",
-                        ReturnStructuredUnknownCommandFailure
-                    ),
-                    new TestCase(
-                        "Deny insufficient permission before handler",
-                        DenyInsufficientPermissionBeforeHandler
-                    ),
-                    new TestCase(
-                        "Reject server command on client",
-                        RejectServerCommandOnClient
-                    ),
-                    new TestCase(
-                        "Isolate handler exception",
-                        IsolateHandlerException
-                    )
-                };
-
-            int failures = 0;
-
-            foreach (TestCase test in tests)
-            {
-                try
-                {
-                    test.Action();
-                    Console.WriteLine("PASS " + test.Name);
-                }
-                catch (Exception exception)
-                {
-                    failures++;
-
-                    Console.WriteLine(
-                        "FAIL "
-                        + test.Name
-                        + ": "
-                        + exception.Message
-                    );
-                }
-            }
-
-            Console.WriteLine(
-                failures == 0
-                    ? "OK execution tests passed: " + tests.Count
-                    : "FAILED execution tests: "
-                        + failures
-                        + " of "
-                        + tests.Count
-            );
-
-            return failures == 0 ? 0 : 1;
-        }
-
-        private static void ExecuteRegisteredCommand()
+        [Fact]
+        public void ExecuteRegisteredCommand()
         {
             var registry =
                 new CommandRegistry();
@@ -119,7 +60,8 @@ namespace MarcoZechner.CommandApi.Tests
             );
         }
 
-        private static void ReturnStructuredUnknownCommandFailure()
+        [Fact]
+        public void ReturnStructuredUnknownCommandFailure()
         {
             var executor =
                 new CommandExecutor(
@@ -165,7 +107,8 @@ namespace MarcoZechner.CommandApi.Tests
             );
         }
 
-        private static void DenyInsufficientPermissionBeforeHandler()
+        [Fact]
+        public void DenyInsufficientPermissionBeforeHandler()
         {
             bool handlerCalled = false;
 
@@ -235,7 +178,8 @@ namespace MarcoZechner.CommandApi.Tests
             );
         }
 
-        private static void RejectServerCommandOnClient()
+        [Fact]
+        public void RejectServerCommandOnClient()
         {
             bool handlerCalled = false;
 
@@ -299,7 +243,8 @@ namespace MarcoZechner.CommandApi.Tests
             );
         }
 
-        private static void IsolateHandlerException()
+        [Fact]
+        public void IsolateHandlerException()
         {
             var registry =
                 new CommandRegistry();
@@ -467,22 +412,6 @@ namespace MarcoZechner.CommandApi.Tests
                     + ", actual "
                     + actual
                 );
-            }
-        }
-
-        private sealed class TestCase
-        {
-            public string Name { get; }
-
-            public Action Action { get; }
-
-            public TestCase(
-                string name,
-                Action action
-            )
-            {
-                Name = name;
-                Action = action;
             }
         }
     }

@@ -1,65 +1,14 @@
 using System;
 using System.Collections.Generic;
 using MarcoZechner.CommandApi.Core;
+using Xunit;
 
 namespace MarcoZechner.CommandApi.Tests
 {
-    internal static class Program
+    public sealed class BasicBuiltInsTests
     {
-        private static int Main()
-        {
-            var tests =
-                new List<TestCase>
-                {
-                    new TestCase(
-                        "Register ping and whoami as server commands",
-                        RegisterPingAndWhoamiAsServerCommands
-                    ),
-                    new TestCase(
-                        "Ping reports trusted request execution",
-                        PingReportsTrustedRequestExecution
-                    ),
-                    new TestCase(
-                        "Whoami reports trusted requester identity",
-                        WhoamiReportsTrustedRequesterIdentity
-                    )
-                };
-
-            int failures = 0;
-
-            foreach (TestCase test in tests)
-            {
-                try
-                {
-                    test.Action();
-                    Console.WriteLine("PASS " + test.Name);
-                }
-                catch (Exception exception)
-                {
-                    failures++;
-
-                    Console.WriteLine(
-                        "FAIL "
-                        + test.Name
-                        + ": "
-                        + exception.Message
-                    );
-                }
-            }
-
-            Console.WriteLine(
-                failures == 0
-                    ? "OK basic built-in tests passed: " + tests.Count
-                    : "FAILED basic built-in tests: "
-                        + failures
-                        + " of "
-                        + tests.Count
-            );
-
-            return failures == 0 ? 0 : 1;
-        }
-
-        private static void RegisterPingAndWhoamiAsServerCommands()
+        [Fact]
+        public void RegisterPingAndWhoamiAsServerCommands()
         {
             CommandRegistry registry =
                 CreateRegistryWithBuiltIns();
@@ -90,7 +39,8 @@ namespace MarcoZechner.CommandApi.Tests
             );
         }
 
-        private static void PingReportsTrustedRequestExecution()
+        [Fact]
+        public void PingReportsTrustedRequestExecution()
         {
             CommandRegistry registry =
                 CreateRegistryWithBuiltIns();
@@ -147,7 +97,8 @@ namespace MarcoZechner.CommandApi.Tests
             );
         }
 
-        private static void WhoamiReportsTrustedRequesterIdentity()
+        [Fact]
+        public void WhoamiReportsTrustedRequesterIdentity()
         {
             CommandRegistry registry =
                 CreateRegistryWithBuiltIns();
@@ -307,22 +258,6 @@ namespace MarcoZechner.CommandApi.Tests
                     + ", actual "
                     + actual
                 );
-            }
-        }
-
-        private sealed class TestCase
-        {
-            public string Name { get; }
-
-            public Action Action { get; }
-
-            public TestCase(
-                string name,
-                Action action
-            )
-            {
-                Name = name;
-                Action = action;
             }
         }
     }
