@@ -1,37 +1,86 @@
 # CommandAPI
 
-A Rich HUD Master command console and command registration framework for
+CommandAPI is a command framework for Space Engineers.
 
-Space Engineers.
+## Current runtime
 
-## Runtime dependency
+The current development slice provides:
 
-Add Rich HUD Master to the world:
+- vanilla chat input through `/cmd`;
+- structured command results;
+- case-insensitive command names and aliases;
+- permission and execution-location validation;
+- built-in `help`, `ping`, `whoami`, and `status` commands;
+- requester identity and permission data derived from authoritative server state;
+- correlated client-to-server command requests;
+- requester-only server-to-client command results;
+- listen-server and dedicated-server networking support.
 
-- Workshop item: `1965654081`
+All recognized commands are submitted to the authoritative server. The server
+derives requester identity and permissions from the validated transport sender,
+executes the command, and returns the structured result only to that requester.
 
-The Rich HUD Client and Shared source is vendored from:
+RichHudChat is planned as a separate optional input and presentation provider.
+CommandAPI does not contain RichHudFramework and has no Rich HUD Master runtime
+dependency.
 
-- repository: `ZachHembree/RichHudFramework.Client`
+## Embedded networking layer
 
-- commit: `058a31e3431a9c0df0778770d4747992f06de175`
+CommandAPI source-copies `Mz.Networking.Core` and
+`Mz.Networking.SpaceEngineers` from SpaceEngineersLibrary. The copied revision
+and provenance are recorded under
+`Data/Scripts/CommandAPI/Libraries/Mz.Networking/SOURCE.md`.
 
-- commit date: `2025-12-11`
+Command traffic uses Space Engineers secure-message channel `31280`. The value
+is the low 16 bits of FNV-1a over
+`MarcoZechner.CommandAPI.Network.v1` and is part of the CommandAPI network
+protocol assignment.
 
+## In-game commands
 
-## Current progress
+- `/cmd help`
+- `/cmd ping`
+- `/cmd whoami`
+- `/cmd status`
 
-When registration succeeds, a temporary notification appears:
+Malformed and unknown commands are suppressed from global chat and reported to
+the requester through the active local presentation adapter.
 
-`CommandAPI connected to Rich HUD Master.`
-
-The notification is bootstrap diagnostics and will be removed after the integration is verified.
-
-## Build without Space Engineers
+## Build and test
 
 From the mod root:
 
-`dotnet build Data\\CommandAPI.csproj --nologo`
+`dotnet test CommandAPI.slnx --nologo`
 
-should finish without errors.
+runs the xUnit test projects.
 
+`dotnet build Data\CommandAPI.csproj --nologo`
+
+builds the Space Engineers mod.
+
+## External API collision smoke test
+
+Two standalone smoke consumers are included under `SmokeMods`:
+
+- `CommandApiSmokeAlpha`
+- `CommandApiSmokeBeta`
+
+Both always register deterministic qualified commands:
+
+- `/cmd smoke.alpha`
+- `/cmd smoke.beta`
+
+Both also attempt to register `/cmd smoke`. The first loaded consumer owns that
+short convenience name. The losing consumer keeps its qualified command and
+logs the collision instead of overriding the winner. When the winner unloads
+and releases the name, the other consumer may claim it on a later registration
+attempt.
+
+Run `sync smoke consumers.bat` while Space Engineers is closed to materialize
+both local mods next to CommandAPI in the Space Engineers `Mods` directory.
+Load CommandAPI and both smoke mods, then run:
+
+- `/cmd smoke`
+- `/cmd smoke.alpha`
+- `/cmd smoke.beta`
+- `/cmd help`
