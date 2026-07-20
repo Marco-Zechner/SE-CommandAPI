@@ -326,6 +326,150 @@ namespace MarcoZechner.CommandApi.Tests
             );
         }
 
+        [Fact]
+        public void RegistrationHandleRemovesCanonicalNameAndAliases()
+        {
+            var registry =
+                new CommandRegistry();
+
+            Action unregister;
+            string errorMessage;
+
+            True(
+                registry.TryRegister(
+                    CreateDefinition(
+                        "echo",
+                        new[] { "say" },
+                        NoOpHandler
+                    ),
+                    out unregister,
+                    out errorMessage
+                ),
+                errorMessage
+            );
+
+            Equal(
+                1,
+                registry.Count,
+                "registered count"
+            );
+
+            CommandDefinition resolved;
+
+            True(
+                registry.TryResolve(
+                    "echo",
+                    out resolved
+                ),
+                "Canonical name was not registered."
+            );
+
+            True(
+                registry.TryResolve(
+                    "say",
+                    out resolved
+                ),
+                "Alias was not registered."
+            );
+
+            unregister();
+
+            Equal(
+                0,
+                registry.Count,
+                "unregistered count"
+            );
+
+            False(
+                registry.TryResolve(
+                    "echo",
+                    out resolved
+                ),
+                "Canonical name remained registered."
+            );
+
+            False(
+                registry.TryResolve(
+                    "say",
+                    out resolved
+                ),
+                "Alias remained registered."
+            );
+        }
+
+        [Fact]
+        public void RegistrationHandleIsIdempotentAndCannotRemoveReplacement()
+        {
+            var registry =
+                new CommandRegistry();
+
+            Action firstUnregister;
+            string firstError;
+
+            True(
+                registry.TryRegister(
+                    CreateDefinition(
+                        "echo",
+                        new string[0],
+                        NoOpHandler
+                    ),
+                    out firstUnregister,
+                    out firstError
+                ),
+                firstError
+            );
+
+            firstUnregister();
+            firstUnregister();
+
+            var replacement =
+                CreateDefinition(
+                    "echo",
+                    new string[0],
+                    NoOpHandler
+                );
+
+            Action replacementUnregister;
+            string replacementError;
+
+            True(
+                registry.TryRegister(
+                    replacement,
+                    out replacementUnregister,
+                    out replacementError
+                ),
+                replacementError
+            );
+
+            firstUnregister();
+
+            CommandDefinition resolved;
+
+            True(
+                registry.TryResolve(
+                    "echo",
+                    out resolved
+                ),
+                "Replacement registration was removed by a stale handle."
+            );
+
+            Same(
+                replacement,
+                resolved,
+                "replacement definition"
+            );
+
+            replacementUnregister();
+
+            False(
+                registry.TryResolve(
+                    "echo",
+                    out resolved
+                ),
+                "Replacement registration remained after disposal."
+            );
+        }
+
         private static CommandDefinition CreateDefinition(
             string canonicalName,
             string[] aliases,

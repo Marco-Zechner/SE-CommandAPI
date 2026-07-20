@@ -43,6 +43,21 @@ namespace MarcoZechner.CommandApi.Core
             out string errorMessage
         )
         {
+            Action unregister;
+
+            return TryRegister(
+                definition,
+                out unregister,
+                out errorMessage
+            );
+        }
+
+        public bool TryRegister(
+            CommandDefinition definition,
+            out Action unregister,
+            out string errorMessage
+        )
+        {
             if (definition == null)
                 throw new ArgumentNullException(nameof(definition));
 
@@ -74,6 +89,8 @@ namespace MarcoZechner.CommandApi.Core
 
                 if (_definitionsByName.ContainsKey(name))
                 {
+                    unregister = null;
+
                     errorMessage =
                         "Command name '"
                         + name
@@ -96,9 +113,59 @@ namespace MarcoZechner.CommandApi.Core
             }
 
             _definitions.Add(definition);
-            errorMessage = null;
 
+            bool isUnregistered = false;
+
+            unregister =
+                delegate
+                {
+                    if (isUnregistered)
+                        return;
+
+                    isUnregistered = true;
+
+                    Unregister(
+                        definition,
+                        names
+                    );
+                };
+
+            errorMessage = null;
             return true;
+        }
+
+        private void Unregister(
+            CommandDefinition definition,
+            IList<string> names
+        )
+        {
+            for (
+                int index = 0;
+                index < names.Count;
+                index++
+            )
+            {
+                string name =
+                    names[index];
+
+                CommandDefinition registered;
+
+                if (
+                    _definitionsByName.TryGetValue(
+                        name,
+                        out registered
+                    )
+                    && ReferenceEquals(
+                        registered,
+                        definition
+                    )
+                )
+                {
+                    _definitionsByName.Remove(name);
+                }
+            }
+
+            _definitions.Remove(definition);
         }
 
         public bool TryResolve(
