@@ -4,5 +4,6 @@
   </Folder>
   <Folder Name="/Tests/">
     <Project Path="Tests/CommandAPI.Core.Tests/CommandAPI.Core.Tests.csproj" />
+    <Project Path="Tests/CommandAPI.Registry.Tests/CommandAPI.Registry.Tests.csproj" />
   </Folder>
 </Solution>
