@@ -3,24 +3,24 @@ using MarcoZechner.CommandApi.Core;
 
 namespace MarcoZechner.CommandApi.Chat
 {
-    public sealed class VanillaChatCommandAdapter : IDisposable
+    public sealed class VanillaChatCommandAdapter :
+        IDisposable
     {
         private const string Author = "CommandAPI";
         private const int MaximumDetailLines = 8;
 
         private readonly IVanillaChatInput _input;
         private readonly IVanillaChatOutput _output;
-        private readonly CommandExecutor _executor;
-        private readonly VanillaChatExecutionContextProvider
-            _contextProvider;
+
+        private readonly VanillaChatCommandSubmitter
+            _submitter;
 
         private bool _disposed;
 
         public VanillaChatCommandAdapter(
             IVanillaChatInput input,
             IVanillaChatOutput output,
-            CommandExecutor executor,
-            VanillaChatExecutionContextProvider contextProvider
+            VanillaChatCommandSubmitter submitter
         )
         {
             if (input == null)
@@ -29,101 +29,27 @@ namespace MarcoZechner.CommandApi.Chat
             if (output == null)
                 throw new ArgumentNullException(nameof(output));
 
-            if (executor == null)
-                throw new ArgumentNullException(nameof(executor));
-
-            if (contextProvider == null)
+            if (submitter == null)
             {
                 throw new ArgumentNullException(
-                    nameof(contextProvider)
+                    nameof(submitter)
                 );
             }
 
             _input = input;
             _output = output;
-            _executor = executor;
-            _contextProvider = contextProvider;
+            _submitter = submitter;
 
             _input.MessageEntered += OnMessageEntered;
         }
 
-        public void Dispose()
-        {
-            if (_disposed)
-                return;
-
-            _disposed = true;
-            _input.MessageEntered -= OnMessageEntered;
-        }
-
-        private void OnMessageEntered(
-            ulong senderId,
-            string message,
-            ref bool sendToOthers
-        )
-        {
-            if (_disposed)
-                return;
-
-            CommandParseResult parseResult =
-                CommandInputParser.Parse(message);
-
-            if (
-                parseResult.Status
-                    == CommandParseStatus.NotCommand
-            )
-            {
-                return;
-            }
-
-            sendToOthers = false;
-
-            if (
-                parseResult.Status
-                    == CommandParseStatus.Error
-            )
-            {
-                _output.WriteLine(
-                    Author,
-                    "Command error: "
-                        + parseResult.ErrorMessage
-                );
-
-                return;
-            }
-
-            CommandExecutionContext context;
-
-            try
-            {
-                context =
-                    _contextProvider(senderId);
-            }
-            catch (Exception)
-            {
-                WriteAdapterFailure();
-                return;
-            }
-
-            if (context == null)
-            {
-                WriteAdapterFailure();
-                return;
-            }
-
-            CommandResult result =
-                _executor.Execute(
-                    context,
-                    parseResult.Input
-                );
-
-            WriteResult(result);
-        }
-
-        private void WriteResult(
+        public void PresentResult(
             CommandResult result
         )
         {
+            if (_disposed)
+                return;
+
             if (result == null)
             {
                 WriteAdapterFailure();
@@ -181,6 +107,64 @@ namespace MarcoZechner.CommandApi.Chat
                     Author,
                     "Usage: " + result.UsageHint
                 );
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+
+            _disposed = true;
+            _input.MessageEntered -= OnMessageEntered;
+        }
+
+        private void OnMessageEntered(
+            ulong senderId,
+            string message,
+            ref bool sendToOthers
+        )
+        {
+            if (_disposed)
+                return;
+
+            CommandParseResult parseResult =
+                CommandInputParser.Parse(message);
+
+            if (
+                parseResult.Status
+                    == CommandParseStatus.NotCommand
+            )
+            {
+                return;
+            }
+
+            sendToOthers = false;
+
+            if (
+                parseResult.Status
+                    == CommandParseStatus.Error
+            )
+            {
+                _output.WriteLine(
+                    Author,
+                    "Command error: "
+                        + parseResult.ErrorMessage
+                );
+
+                return;
+            }
+
+            try
+            {
+                _submitter(
+                    senderId,
+                    parseResult.Input
+                );
+            }
+            catch (Exception)
+            {
+                WriteAdapterFailure();
             }
         }
 

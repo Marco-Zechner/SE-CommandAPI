@@ -11,29 +11,20 @@ namespace MarcoZechner.CommandApi.Tests
         [Fact]
         public void LeaveUnrelatedChatUntouched()
         {
-            var input =
-                new FakeChatInput();
-
-            var output =
-                new FakeChatOutput();
-
-            int contextRequests = 0;
+            var input = new FakeChatInput();
+            var output = new FakeChatOutput();
+            int submissionCount = 0;
 
             var adapter =
                 new VanillaChatCommandAdapter(
                     input,
                     output,
-                    new CommandExecutor(
-                        new CommandRegistry()
-                    ),
-                    delegate(ulong senderId)
+                    delegate(
+                        ulong senderId,
+                        CommandInput commandInput
+                    )
                     {
-                        contextRequests++;
-
-                        return Context(
-                            "unexpected",
-                            senderId
-                        );
+                        submissionCount++;
                     }
                 );
 
@@ -45,82 +36,33 @@ namespace MarcoZechner.CommandApi.Tests
                 ref sendToOthers
             );
 
-            True(
-                sendToOthers,
-                "Unrelated chat was suppressed."
-            );
-
-            Equal(
-                0,
-                output.Lines.Count,
-                "output count"
-            );
-
-            Equal(
-                0,
-                contextRequests,
-                "context request count"
-            );
+            Assert.True(sendToOthers);
+            Assert.Equal(0, submissionCount);
+            Assert.Empty(output.Lines);
 
             adapter.Dispose();
         }
 
         [Fact]
-        public void SuppressAndExecuteRecognizedCommand()
+        public void SuppressAndSubmitRecognizedCommand()
         {
-            var registry =
-                new CommandRegistry();
-
-            string observedArgument = null;
-
-            Register(
-                registry,
-                Definition(
-                    "echo",
-                    delegate(
-                        CommandExecutionContext context,
-                        CommandInput commandInput
-                    )
-                    {
-                        observedArgument =
-                            commandInput.Arguments[0];
-
-                        return new CommandResult(
-                            true,
-                            "Echo",
-                            "Command completed.",
-                            new[]
-                            {
-                                observedArgument
-                            },
-                            CommandSeverity.Success,
-                            null
-                        );
-                    }
-                )
-            );
-
-            var input =
-                new FakeChatInput();
-
-            var output =
-                new FakeChatOutput();
+            var input = new FakeChatInput();
+            var output = new FakeChatOutput();
 
             ulong observedSender = 0UL;
+            CommandInput observedInput = null;
 
             var adapter =
                 new VanillaChatCommandAdapter(
                     input,
                     output,
-                    new CommandExecutor(registry),
-                    delegate(ulong senderId)
+                    delegate(
+                        ulong senderId,
+                        CommandInput commandInput
+                    )
                     {
                         observedSender = senderId;
-
-                        return Context(
-                            "request-echo",
-                            senderId
-                        );
+                        observedInput = commandInput;
                     }
                 );
 
@@ -132,31 +74,15 @@ namespace MarcoZechner.CommandApi.Tests
                 ref sendToOthers
             );
 
-            False(
-                sendToOthers,
-                "Recognized command was not suppressed."
+            Assert.False(sendToOthers);
+            Assert.Equal(42UL, observedSender);
+            Assert.NotNull(observedInput);
+            Assert.Equal("echo", observedInput.CommandName);
+            Assert.Equal(
+                new[] { "MiXeD Value" },
+                observedInput.Arguments
             );
-
-            Equal(
-                42UL,
-                observedSender,
-                "sender ID"
-            );
-
-            Equal(
-                "MiXeD Value",
-                observedArgument,
-                "command argument"
-            );
-
-            AssertOutput(
-                output,
-                new[]
-                {
-                    "Echo: Command completed.",
-                    "MiXeD Value"
-                }
-            );
+            Assert.Empty(output.Lines);
 
             adapter.Dispose();
         }
@@ -164,29 +90,20 @@ namespace MarcoZechner.CommandApi.Tests
         [Fact]
         public void SuppressMalformedCommandAndShowParseError()
         {
-            var input =
-                new FakeChatInput();
-
-            var output =
-                new FakeChatOutput();
-
-            int contextRequests = 0;
+            var input = new FakeChatInput();
+            var output = new FakeChatOutput();
+            int submissionCount = 0;
 
             var adapter =
                 new VanillaChatCommandAdapter(
                     input,
                     output,
-                    new CommandExecutor(
-                        new CommandRegistry()
-                    ),
-                    delegate(ulong senderId)
+                    delegate(
+                        ulong senderId,
+                        CommandInput commandInput
+                    )
                     {
-                        contextRequests++;
-
-                        return Context(
-                            "unexpected",
-                            senderId
-                        );
+                        submissionCount++;
                     }
                 );
 
@@ -198,16 +115,8 @@ namespace MarcoZechner.CommandApi.Tests
                 ref sendToOthers
             );
 
-            False(
-                sendToOthers,
-                "Malformed command was not suppressed."
-            );
-
-            Equal(
-                0,
-                contextRequests,
-                "context request count"
-            );
+            Assert.False(sendToOthers);
+            Assert.Equal(0, submissionCount);
 
             AssertOutput(
                 output,
@@ -221,26 +130,22 @@ namespace MarcoZechner.CommandApi.Tests
         }
 
         [Fact]
-        public void FormatStructuredExecutionFailure()
+        public void ReportSubmissionFailure()
         {
-            var input =
-                new FakeChatInput();
-
-            var output =
-                new FakeChatOutput();
+            var input = new FakeChatInput();
+            var output = new FakeChatOutput();
 
             var adapter =
                 new VanillaChatCommandAdapter(
                     input,
                     output,
-                    new CommandExecutor(
-                        new CommandRegistry()
-                    ),
-                    delegate(ulong senderId)
+                    delegate(
+                        ulong senderId,
+                        CommandInput commandInput
+                    )
                     {
-                        return Context(
-                            "request-missing",
-                            senderId
+                        throw new InvalidOperationException(
+                            "Transport unavailable."
                         );
                     }
                 );
@@ -249,13 +154,45 @@ namespace MarcoZechner.CommandApi.Tests
 
             input.Raise(
                 9UL,
-                "/cmd missing",
+                "/cmd ping",
                 ref sendToOthers
             );
 
-            False(
-                sendToOthers,
-                "Unknown command was not suppressed."
+            Assert.False(sendToOthers);
+
+            AssertOutput(
+                output,
+                new[]
+                {
+                    "Command failed: The command could not be completed."
+                }
+            );
+
+            adapter.Dispose();
+        }
+
+        [Fact]
+        public void PresentStructuredResult()
+        {
+            var input = new FakeChatInput();
+            var output = new FakeChatOutput();
+
+            var adapter =
+                new VanillaChatCommandAdapter(
+                    input,
+                    output,
+                    IgnoreSubmission
+                );
+
+            adapter.PresentResult(
+                new CommandResult(
+                    false,
+                    "Unknown command",
+                    "Unknown command 'missing'.",
+                    new string[0],
+                    CommandSeverity.Error,
+                    "/cmd help"
+                )
             );
 
             AssertOutput(
@@ -273,68 +210,37 @@ namespace MarcoZechner.CommandApi.Tests
         [Fact]
         public void BoundVerboseResultOutput()
         {
-            var registry =
-                new CommandRegistry();
-
-            Register(
-                registry,
-                Definition(
-                    "verbose",
-                    delegate(
-                        CommandExecutionContext context,
-                        CommandInput commandInput
-                    )
-                    {
-                        return new CommandResult(
-                            true,
-                            "Verbose",
-                            "Many details.",
-                            new[]
-                            {
-                                "Line 1",
-                                "Line 2",
-                                "Line 3",
-                                "Line 4",
-                                "Line 5",
-                                "Line 6",
-                                "Line 7",
-                                "Line 8",
-                                "Line 9",
-                                "Line 10"
-                            },
-                            CommandSeverity.Information,
-                            null
-                        );
-                    }
-                )
-            );
-
-            var input =
-                new FakeChatInput();
-
-            var output =
-                new FakeChatOutput();
+            var input = new FakeChatInput();
+            var output = new FakeChatOutput();
 
             var adapter =
                 new VanillaChatCommandAdapter(
                     input,
                     output,
-                    new CommandExecutor(registry),
-                    delegate(ulong senderId)
-                    {
-                        return Context(
-                            "request-verbose",
-                            senderId
-                        );
-                    }
+                    IgnoreSubmission
                 );
 
-            bool sendToOthers = true;
-
-            input.Raise(
-                11UL,
-                "/cmd verbose",
-                ref sendToOthers
+            adapter.PresentResult(
+                new CommandResult(
+                    true,
+                    "Verbose",
+                    "Many details.",
+                    new[]
+                    {
+                        "Line 1",
+                        "Line 2",
+                        "Line 3",
+                        "Line 4",
+                        "Line 5",
+                        "Line 6",
+                        "Line 7",
+                        "Line 8",
+                        "Line 9",
+                        "Line 10"
+                    },
+                    CommandSeverity.Information,
+                    null
+                )
             );
 
             AssertOutput(
@@ -358,113 +264,61 @@ namespace MarcoZechner.CommandApi.Tests
         }
 
         [Fact]
-        public void DisposeUnsubscribesChatHandler()
+        public void DisposeUnsubscribesAndStopsPresentation()
         {
-            var input =
-                new FakeChatInput();
-
-            var output =
-                new FakeChatOutput();
+            var input = new FakeChatInput();
+            var output = new FakeChatOutput();
+            int submissionCount = 0;
 
             var adapter =
                 new VanillaChatCommandAdapter(
                     input,
                     output,
-                    new CommandExecutor(
-                        new CommandRegistry()
-                    ),
-                    delegate(ulong senderId)
+                    delegate(
+                        ulong senderId,
+                        CommandInput commandInput
+                    )
                     {
-                        return Context(
-                            "request-disposed",
-                            senderId
-                        );
+                        submissionCount++;
                     }
                 );
 
-            Equal(
-                1,
-                input.SubscriberCount,
-                "subscriber count before disposal"
-            );
+            Assert.Equal(1, input.SubscriberCount);
 
             adapter.Dispose();
             adapter.Dispose();
 
-            Equal(
-                0,
-                input.SubscriberCount,
-                "subscriber count after disposal"
-            );
+            Assert.Equal(0, input.SubscriberCount);
 
             bool sendToOthers = true;
 
             input.Raise(
                 12UL,
-                "/cmd missing",
+                "/cmd ping",
                 ref sendToOthers
             );
 
-            True(
-                sendToOthers,
-                "Disposed adapter still suppressed chat."
+            adapter.PresentResult(
+                new CommandResult(
+                    true,
+                    "Pong",
+                    "Completed.",
+                    new string[0],
+                    CommandSeverity.Success,
+                    null
+                )
             );
 
-            Equal(
-                0,
-                output.Lines.Count,
-                "output count after disposal"
-            );
+            Assert.True(sendToOthers);
+            Assert.Equal(0, submissionCount);
+            Assert.Empty(output.Lines);
         }
 
-        private static CommandDefinition Definition(
-            string name,
-            CommandHandler handler
+        private static void IgnoreSubmission(
+            ulong senderId,
+            CommandInput commandInput
         )
         {
-            return new CommandDefinition(
-                name,
-                new string[0],
-                name + " command",
-                name + " command help",
-                name,
-                "Tests",
-                CommandExecutionLocation.Server,
-                0,
-                "CommandAPI.Tests",
-                handler
-            );
-        }
-
-        private static void Register(
-            CommandRegistry registry,
-            CommandDefinition definition
-        )
-        {
-            string errorMessage;
-
-            True(
-                registry.TryRegister(
-                    definition,
-                    out errorMessage
-                ),
-                errorMessage
-            );
-        }
-
-        private static CommandExecutionContext Context(
-            string requestId,
-            ulong senderId
-        )
-        {
-            return new CommandExecutionContext(
-                requestId,
-                senderId,
-                1234L,
-                "Test Player",
-                0,
-                true
-            );
         }
 
         private static void AssertOutput(
@@ -472,10 +326,9 @@ namespace MarcoZechner.CommandApi.Tests
             string[] expectedMessages
         )
         {
-            Equal(
+            Assert.Equal(
                 expectedMessages.Length,
-                output.Lines.Count,
-                "output count"
+                output.Lines.Count
             );
 
             for (
@@ -484,62 +337,23 @@ namespace MarcoZechner.CommandApi.Tests
                 index++
             )
             {
-                Equal(
+                Assert.Equal(
                     "CommandAPI",
-                    output.Lines[index].Author,
-                    "author[" + index + "]"
+                    output.Lines[index].Author
                 );
 
-                Equal(
+                Assert.Equal(
                     expectedMessages[index],
-                    output.Lines[index].Message,
-                    "message[" + index + "]"
+                    output.Lines[index].Message
                 );
             }
         }
 
-        private static void True(
-            bool condition,
-            string message
-        )
+        private sealed class FakeChatInput :
+            IVanillaChatInput
         {
-            if (!condition)
-                throw new InvalidOperationException(message);
-        }
-
-        private static void False(
-            bool condition,
-            string message
-        )
-        {
-            if (condition)
-                throw new InvalidOperationException(message);
-        }
-
-        private static void Equal<T>(
-            T expected,
-            T actual,
-            string label
-        )
-        {
-            if (!EqualityComparer<T>.Default.Equals(
-                expected,
-                actual
-            ))
-            {
-                throw new InvalidOperationException(
-                    label
-                    + ": expected "
-                    + expected
-                    + ", actual "
-                    + actual
-                );
-            }
-        }
-
-        private sealed class FakeChatInput : IVanillaChatInput
-        {
-            private VanillaChatMessageEnteredHandler _handler;
+            private VanillaChatMessageEnteredHandler
+                _handler;
 
             public int SubscriberCount
             {
@@ -547,11 +361,14 @@ namespace MarcoZechner.CommandApi.Tests
                 {
                     return _handler == null
                         ? 0
-                        : _handler.GetInvocationList().Length;
+                        : _handler
+                            .GetInvocationList()
+                            .Length;
                 }
             }
 
-            public event VanillaChatMessageEnteredHandler MessageEntered
+            public event VanillaChatMessageEnteredHandler
+                MessageEntered
             {
                 add { _handler += value; }
                 remove { _handler -= value; }
@@ -566,25 +383,25 @@ namespace MarcoZechner.CommandApi.Tests
                 VanillaChatMessageEnteredHandler handler =
                     _handler;
 
-                if (handler != null)
-                {
-                    handler(
-                        senderId,
-                        message,
-                        ref sendToOthers
-                    );
-                }
+                if (handler == null)
+                    return;
+
+                handler(
+                    senderId,
+                    message,
+                    ref sendToOthers
+                );
             }
         }
 
-        private sealed class FakeChatOutput : IVanillaChatOutput
+        private sealed class FakeChatOutput :
+            IVanillaChatOutput
         {
             public List<OutputLine> Lines { get; }
 
             public FakeChatOutput()
             {
-                Lines =
-                    new List<OutputLine>();
+                Lines = new List<OutputLine>();
             }
 
             public void WriteLine(

@@ -90,6 +90,9 @@ namespace MarcoZechner.CommandApi
                 );
             }
 
+            var executor =
+                new CommandExecutor(registry);
+
             var input =
                 new SpaceEngineersVanillaChatInput();
 
@@ -98,15 +101,33 @@ namespace MarcoZechner.CommandApi
                 var output =
                     new SpaceEngineersVanillaChatOutput();
 
-                _chatAdapter =
+                VanillaChatCommandAdapter adapter =
+                    null;
+
+                adapter =
                     new VanillaChatCommandAdapter(
                         input,
                         output,
-                        new CommandExecutor(registry),
-                        SpaceEngineersExecutionContextProvider
-                            .Create
+                        delegate(
+                            ulong senderId,
+                            CommandInput commandInput
+                        )
+                        {
+                            CommandExecutionContext context =
+                                SpaceEngineersExecutionContextProvider
+                                    .Create(senderId);
+
+                            CommandResult result =
+                                executor.Execute(
+                                    context,
+                                    commandInput
+                                );
+
+                            adapter.PresentResult(result);
+                        }
                     );
 
+                _chatAdapter = adapter;
                 _chatInput = input;
                 _initialized = true;
 
