@@ -30,6 +30,10 @@
     <Compile
       Include="..\..\Data\Scripts\CommandAPI\Api\**\*.cs"
       Link="Api\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile
+      Include="..\..\Data\Scripts\CommandAPI\Libraries\Mz.ApiProtocol\**\*.cs"
+      Exclude="..\..\Data\Scripts\CommandAPI\Libraries\Mz.ApiProtocol\SpaceEngineers\SpaceEngineersModMessageBus.cs"
+      Link="Libraries\Mz.ApiProtocol\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

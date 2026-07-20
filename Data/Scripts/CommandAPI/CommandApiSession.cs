@@ -1,7 +1,9 @@
 using System;
+using MarcoZechner.CommandApi.Api;
 using MarcoZechner.CommandApi.Chat;
 using MarcoZechner.CommandApi.Core;
 using MarcoZechner.CommandApi.Networking;
+using Mz.ApiProtocol.SpaceEngineers;
 using Mz.Networking.SpaceEngineers;
 using Sandbox.ModAPI;
 using VRage.Game.Components;
@@ -32,6 +34,9 @@ namespace MarcoZechner.CommandApi
 
         private CommandNetworkCoordinator
             _networkCoordinator;
+
+        private CommandApiProvider
+            _apiProvider;
 
         private SpaceEngineersVanillaChatInput
             _chatInput;
@@ -148,6 +153,17 @@ namespace MarcoZechner.CommandApi
                     CreateExecutionContext,
                     PresentNetworkResult
                 );
+
+            if (isServer)
+            {
+                _apiProvider =
+                    new CommandApiProvider(
+                        new SpaceEngineersModMessageBus(),
+                        registry
+                    );
+
+                _apiProvider.Start();
+            }
 
             bool isDedicated =
                 MyAPIGateway.Utilities.IsDedicated;
@@ -286,6 +302,12 @@ namespace MarcoZechner.CommandApi
 
         private void DisposeRuntime()
         {
+            if (_apiProvider != null)
+            {
+                _apiProvider.Dispose();
+                _apiProvider = null;
+            }
+
             if (_chatAdapter != null)
             {
                 _chatAdapter.Dispose();
