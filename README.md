@@ -11,10 +11,14 @@ The current development slice provides:
 - case-insensitive command names and aliases;
 - permission and execution-location validation;
 - built-in `help`, `ping`, `whoami`, and `status` commands;
-- requester identity and permission data derived from Space Engineers.
+- requester identity and permission data derived from authoritative server state;
+- correlated client-to-server command requests;
+- requester-only server-to-client command results;
+- listen-server and dedicated-server networking support.
 
-Remote-client request and response transport is not implemented yet. Server
-commands currently work for single-player and the listen-server host.
+All recognized commands are submitted to the authoritative server. The server
+derives requester identity and permissions from the validated transport sender,
+executes the command, and returns the structured result only to that requester.
 
 RichHudChat is planned as a separate optional input and presentation provider.
 CommandAPI does not contain RichHudFramework and has no Rich HUD Master runtime
@@ -27,8 +31,10 @@ CommandAPI source-copies `Mz.Networking.Core` and
 and provenance are recorded under
 `Data/Scripts/CommandAPI/Libraries/Mz.Networking/SOURCE.md`.
 
-The networking layer is present in the build but is not connected to command
-execution yet.
+Command traffic uses Space Engineers secure-message channel `31280`. The value
+is the low 16 bits of FNV-1a over
+`MarcoZechner.CommandAPI.Network.v1` and is part of the CommandAPI network
+protocol assignment.
 
 ## In-game commands
 
@@ -38,7 +44,7 @@ execution yet.
 - `/cmd status`
 
 Malformed and unknown commands are suppressed from global chat and reported to
-the requester through vanilla chat output.
+the requester through the active local presentation adapter.
 
 ## Build and test
 

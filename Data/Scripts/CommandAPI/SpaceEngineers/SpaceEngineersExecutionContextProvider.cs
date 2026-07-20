@@ -12,6 +12,17 @@ namespace MarcoZechner.CommandApi.Chat
             ulong senderId
         )
         {
+            return Create(
+                senderId,
+                Guid.NewGuid().ToString("N")
+            );
+        }
+
+        public static CommandExecutionContext Create(
+            ulong senderId,
+            string requestId
+        )
+        {
             if (MyAPIGateway.Players == null)
             {
                 throw new InvalidOperationException(
@@ -53,7 +64,7 @@ namespace MarcoZechner.CommandApi.Chat
                 && MyAPIGateway.Multiplayer.IsServer;
 
             return new CommandExecutionContext(
-                Guid.NewGuid().ToString("N"),
+                requestId,
                 requester.SteamUserId,
                 requester.IdentityId,
                 requester.DisplayName ?? string.Empty,
