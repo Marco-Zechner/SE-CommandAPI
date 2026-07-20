@@ -20,6 +20,16 @@ RichHudChat is planned as a separate optional input and presentation provider.
 CommandAPI does not contain RichHudFramework and has no Rich HUD Master runtime
 dependency.
 
+## Embedded networking layer
+
+CommandAPI source-copies `Mz.Networking.Core` and
+`Mz.Networking.SpaceEngineers` from SpaceEngineersLibrary. The copied revision
+and provenance are recorded under
+`Data/Scripts/CommandAPI/Libraries/Mz.Networking/SOURCE.md`.
+
+The networking layer is present in the build but is not connected to command
+execution yet.
+
 ## In-game commands
 
 - `/cmd help`
