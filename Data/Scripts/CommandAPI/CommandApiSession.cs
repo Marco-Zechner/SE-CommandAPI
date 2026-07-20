@@ -1,5 +1,6 @@
+using MarcoZechner.CommandApi.Console;
 using RichHudFramework.Client;
-using Sandbox.ModAPI;
+using RichHudFramework.UI.Client;
 using VRage.Game;
 using VRage.Game.Components;
 
@@ -10,15 +11,12 @@ namespace MarcoZechner.CommandApi
     {
         private const string ModDisplayName = "CommandAPI";
 
+        private CommandConsoleWindow _window;
         private bool _richHudInitialized;
 
         public override void Init(MyObjectBuilder_SessionComponent sessionComponent)
         {
-            RichHudClient.Init(
-                ModDisplayName,
-                OnRichHudInitialized,
-                OnRichHudReset
-            );
+            RichHudClient.Init(ModDisplayName, OnRichHudInitialized, OnRichHudReset);
         }
 
         protected override void UnloadData()
@@ -34,15 +32,21 @@ namespace MarcoZechner.CommandApi
 
             _richHudInitialized = true;
 
-            MyAPIGateway.Utilities.ShowNotification(
-                "CommandAPI connected to Rich HUD Master.",
-                3000,
-                "White"
-            );
+            _window = new CommandConsoleWindow(HudMain.HighDpiRoot)
+            {
+                Visible = true
+            };
         }
 
         private void OnRichHudReset()
         {
+            if (!_richHudInitialized && _window == null)
+                return;
+
+            if (_window != null)
+                _window.Visible = false;
+
+            _window = null;
             _richHudInitialized = false;
         }
     }
