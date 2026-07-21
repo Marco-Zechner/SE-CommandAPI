@@ -164,6 +164,87 @@ namespace MarcoZechner.CommandApi.Tests
         }
 
         [Fact]
+        public void IdenticalCommandNamesCanExistUnderDifferentPrefixes()
+        {
+            var registry =
+                new CommandRegistry();
+
+            CommandDefinition commandApiStatus =
+                CreateDefinition(
+                    "status",
+                    new string[0],
+                    NoOpHandler
+                );
+
+            CommandDefinition imeStatus =
+                CreateDefinition(
+                    "status",
+                    new string[0],
+                    NoOpHandler
+                );
+
+            string commandApiError;
+
+            True(
+                registry.TryRegister(
+                    "/cmd",
+                    commandApiStatus,
+                    out commandApiError
+                ),
+                commandApiError
+            );
+
+            string imeError;
+
+            True(
+                registry.TryRegister(
+                    "/IME",
+                    imeStatus,
+                    out imeError
+                ),
+                imeError
+            );
+
+            CommandDefinition resolved;
+
+            True(
+                registry.TryResolve(
+                    "/cmd",
+                    "status",
+                    out resolved
+                ),
+                "The /cmd command was not resolved."
+            );
+
+            Same(
+                commandApiStatus,
+                resolved,
+                "/cmd status"
+            );
+
+            True(
+                registry.TryResolve(
+                    "/ime",
+                    "STATUS",
+                    out resolved
+                ),
+                "The /ime command was not resolved."
+            );
+
+            Same(
+                imeStatus,
+                resolved,
+                "/ime status"
+            );
+
+            Equal(
+                2,
+                registry.Count,
+                "registered count"
+            );
+        }
+
+        [Fact]
         public void HandlerReceivesTrustedContextAndReturnsStructuredResult()
         {
             CommandExecutionContext observedContext = null;

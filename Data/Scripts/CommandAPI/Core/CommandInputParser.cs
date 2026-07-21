@@ -12,8 +12,22 @@ namespace MarcoZechner.CommandApi.Core
             string text
         )
         {
+            return Parse(
+                text,
+                Prefix
+            );
+        }
+
+        public static CommandParseResult Parse(
+            string text,
+            string prefix
+        )
+        {
             if (string.IsNullOrEmpty(text))
                 return CommandParseResult.NotCommand();
+
+            string normalizedPrefix =
+                CommandInput.NormalizePrefix(prefix);
 
             int prefixStart = 0;
 
@@ -26,13 +40,14 @@ namespace MarcoZechner.CommandApi.Core
             }
 
             if (
-                text.Length - prefixStart < Prefix.Length
+                text.Length - prefixStart
+                    < normalizedPrefix.Length
                 || string.Compare(
                     text,
                     prefixStart,
-                    Prefix,
+                    normalizedPrefix,
                     0,
-                    Prefix.Length,
+                    normalizedPrefix.Length,
                     StringComparison.OrdinalIgnoreCase
                 ) != 0
             )
@@ -41,7 +56,7 @@ namespace MarcoZechner.CommandApi.Core
             }
 
             int contentStart =
-                prefixStart + Prefix.Length;
+                prefixStart + normalizedPrefix.Length;
 
             if (
                 contentStart < text.Length
@@ -97,6 +112,7 @@ namespace MarcoZechner.CommandApi.Core
 
             return CommandParseResult.Success(
                 new CommandInput(
+                    normalizedPrefix,
                     commandName,
                     arguments
                 )
