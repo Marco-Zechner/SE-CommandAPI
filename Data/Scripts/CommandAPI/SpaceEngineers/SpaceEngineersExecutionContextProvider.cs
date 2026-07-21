@@ -23,6 +23,35 @@ namespace MarcoZechner.CommandApi.Chat
             string requestId
         )
         {
+            bool isServer =
+                MyAPIGateway.Multiplayer != null
+                && MyAPIGateway.Multiplayer.IsServer;
+
+            return Create(
+                senderId,
+                requestId,
+                isServer
+            );
+        }
+
+        public static CommandExecutionContext CreateLocal(
+            ulong senderId,
+            string requestId
+        )
+        {
+            return Create(
+                senderId,
+                requestId,
+                false
+            );
+        }
+
+        private static CommandExecutionContext Create(
+            ulong senderId,
+            string requestId,
+            bool isServer
+        )
+        {
             if (MyAPIGateway.Players == null)
             {
                 throw new InvalidOperationException(
@@ -58,10 +87,6 @@ namespace MarcoZechner.CommandApi.Chat
 
             IMyPlayer requester =
                 players[0];
-
-            bool isServer =
-                MyAPIGateway.Multiplayer != null
-                && MyAPIGateway.Multiplayer.IsServer;
 
             return new CommandExecutionContext(
                 requestId,

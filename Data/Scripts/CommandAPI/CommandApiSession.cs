@@ -35,6 +35,9 @@ namespace MarcoZechner.CommandApi
         private CommandNetworkCoordinator
             _networkCoordinator;
 
+        private CommandSubmissionDispatcher
+            _submissionDispatcher;
+
         private CommandApiProvider
             _apiProvider;
 
@@ -185,6 +188,15 @@ namespace MarcoZechner.CommandApi
                 return;
             }
 
+            _submissionDispatcher =
+                new CommandSubmissionDispatcher(
+                    registry,
+                    executor,
+                    CreateLocalExecutionContext,
+                    SubmitServerCommand,
+                    PresentLocalResult
+                );
+
             var input =
                 new SpaceEngineersVanillaChatInput();
 
@@ -216,6 +228,28 @@ namespace MarcoZechner.CommandApi
             CommandInput input
         )
         {
+            CommandSubmissionDispatcher dispatcher =
+                _submissionDispatcher;
+
+            if (dispatcher == null)
+            {
+                throw new InvalidOperationException(
+                    "Command submission is unavailable."
+                );
+            }
+
+            dispatcher.Submit(
+                senderId,
+                Guid.NewGuid().ToString("N"),
+                input
+            );
+        }
+
+        private void SubmitServerCommand(
+            string requestId,
+            CommandInput input
+        )
+        {
             CommandNetworkCoordinator coordinator =
                 _networkCoordinator;
 
@@ -227,9 +261,22 @@ namespace MarcoZechner.CommandApi
             }
 
             coordinator.SendRequest(
-                Guid.NewGuid().ToString("N"),
+                requestId,
                 input
             );
+        }
+
+        private static CommandExecutionContext
+            CreateLocalExecutionContext(
+                ulong senderId,
+                string requestId
+            )
+        {
+            return SpaceEngineersExecutionContextProvider
+                .CreateLocal(
+                    senderId,
+                    requestId
+                );
         }
 
         private static CommandExecutionContext
@@ -245,11 +292,11 @@ namespace MarcoZechner.CommandApi
                 );
         }
 
-        private void PresentNetworkResult(
-            CommandResultMessage message
+        private void PresentLocalResult(
+            CommandResult result
         )
         {
-            if (message == null)
+            if (result == null)
                 return;
 
             VanillaChatCommandAdapter adapter =
@@ -258,7 +305,17 @@ namespace MarcoZechner.CommandApi
             if (adapter == null)
                 return;
 
-            adapter.PresentResult(
+            adapter.PresentResult(result);
+        }
+
+        private void PresentNetworkResult(
+            CommandResultMessage message
+        )
+        {
+            if (message == null)
+                return;
+
+            PresentLocalResult(
                 new CommandResult(
                     message.IsSuccess,
                     message.Title,
@@ -319,6 +376,8 @@ namespace MarcoZechner.CommandApi
                 _chatInput.Dispose();
                 _chatInput = null;
             }
+
+            _submissionDispatcher = null;
 
             if (_networkCoordinator != null)
             {
