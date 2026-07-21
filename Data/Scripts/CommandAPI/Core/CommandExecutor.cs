@@ -31,6 +31,7 @@ namespace MarcoZechner.CommandApi.Core
 
             if (
                 !_registry.TryResolve(
+                    input.Prefix,
                     input.CommandName,
                     out definition
                 )
@@ -41,7 +42,7 @@ namespace MarcoZechner.CommandApi.Core
                     "Unknown command '"
                         + input.CommandName
                         + "'.",
-                    "/cmd help"
+                    input.Prefix + " help"
                 );
             }
 

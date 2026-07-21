@@ -22,7 +22,7 @@ namespace MarcoZechner.CommandApi
             "0.1.0";
 
         private const string ProtocolVersion =
-            "1.0.0";
+            "2.0.0";
 
         // Low 16 bits of FNV-1a for
         // "MarcoZechner.CommandAPI.Network.v1".

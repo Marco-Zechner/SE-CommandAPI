@@ -13,11 +13,12 @@ namespace MarcoZechner.CommandApi.Networking
         public const int MaximumPayloadBytes = 60000;
 
         private const int Magic = 0x434D4441;
-        private const byte WireVersion = 1;
+        private const byte WireVersion = 2;
         private const byte RequestKind = 1;
         private const byte ResultKind = 2;
 
         private const int MaximumRequestIdBytes = 128;
+        private const int MaximumPrefixBytes = 128;
         private const int MaximumCommandNameBytes = 128;
         private const int MaximumTextBytes = 4096;
 
@@ -50,6 +51,12 @@ namespace MarcoZechner.CommandApi.Networking
                 message.RequestId,
                 MaximumRequestIdBytes,
                 "request ID"
+            );
+
+            writer.WriteString(
+                message.Prefix,
+                MaximumPrefixBytes,
+                "command prefix"
             );
 
             writer.WriteString(
@@ -95,6 +102,12 @@ namespace MarcoZechner.CommandApi.Networking
                         "request ID"
                     );
 
+                string prefix =
+                    reader.ReadString(
+                        MaximumPrefixBytes,
+                        "command prefix"
+                    );
+
                 string commandName =
                     reader.ReadString(
                         MaximumCommandNameBytes,
@@ -127,6 +140,7 @@ namespace MarcoZechner.CommandApi.Networking
 
                 return new CommandRequestMessage(
                     requestId,
+                    prefix,
                     commandName,
                     arguments
                 );

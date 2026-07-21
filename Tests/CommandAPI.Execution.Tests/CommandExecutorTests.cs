@@ -61,6 +61,111 @@ namespace MarcoZechner.CommandApi.Tests
         }
 
         [Fact]
+        public void ResolveCommandUsingInputPrefix()
+        {
+            var registry =
+                new CommandRegistry();
+
+            string commandApiError;
+
+            True(
+                registry.TryRegister(
+                    "/cmd",
+                    CreateDefinition(
+                        "status",
+                        CommandExecutionLocation.Server,
+                        0,
+                        delegate(
+                            CommandExecutionContext context,
+                            CommandInput input
+                        )
+                        {
+                            return Success("CommandAPI");
+                        }
+                    ),
+                    out commandApiError
+                ),
+                commandApiError
+            );
+
+            string imeError;
+
+            True(
+                registry.TryRegister(
+                    "/ime",
+                    CreateDefinition(
+                        "status",
+                        CommandExecutionLocation.Server,
+                        0,
+                        delegate(
+                            CommandExecutionContext context,
+                            CommandInput input
+                        )
+                        {
+                            return Success("IME");
+                        }
+                    ),
+                    out imeError
+                ),
+                imeError
+            );
+
+            var executor =
+                new CommandExecutor(registry);
+
+            CommandResult result =
+                executor.Execute(
+                    ServerContext(0),
+                    new CommandInput(
+                        "/IME",
+                        "STATUS",
+                        new string[0]
+                    )
+                );
+
+            True(
+                result.IsSuccess,
+                "Prefix-scoped execution did not succeed."
+            );
+
+            Equal(
+                "IME",
+                result.DetailLines[0],
+                "resolved prefix"
+            );
+        }
+
+        [Fact]
+        public void UnknownCommandUsesInputPrefixInUsageHint()
+        {
+            var executor =
+                new CommandExecutor(
+                    new CommandRegistry()
+                );
+
+            CommandResult result =
+                executor.Execute(
+                    ServerContext(0),
+                    new CommandInput(
+                        "/ime",
+                        "missing",
+                        new string[0]
+                    )
+                );
+
+            False(
+                result.IsSuccess,
+                "Unknown command unexpectedly succeeded."
+            );
+
+            Equal(
+                "/ime help",
+                result.UsageHint,
+                "usage hint"
+            );
+        }
+
+        [Fact]
         public void ReturnStructuredUnknownCommandFailure()
         {
             var executor =

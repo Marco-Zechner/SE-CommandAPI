@@ -12,6 +12,7 @@ namespace MarcoZechner.CommandApi.Tests
         {
             var request = new CommandRequestMessage(
                 "request-001",
+                "/IME",
                 "EcHo",
                 new[]
                 {
@@ -27,6 +28,7 @@ namespace MarcoZechner.CommandApi.Tests
                 CommandMessageCodec.DeserializeRequest(payload);
 
             Assert.Equal("request-001", decoded.RequestId);
+            Assert.Equal("/ime", decoded.Prefix);
             Assert.Equal("EcHo", decoded.CommandName);
 
             Assert.Equal(
