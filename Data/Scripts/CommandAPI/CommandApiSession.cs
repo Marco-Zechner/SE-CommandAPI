@@ -19,7 +19,7 @@ namespace MarcoZechner.CommandApi
             "CommandAPI";
 
         private const string CommandApiVersion =
-            "0.1.0";
+            "0.2.0";
 
         private const string ProtocolVersion =
             "2.0.0";
@@ -157,16 +157,13 @@ namespace MarcoZechner.CommandApi
                     PresentNetworkResult
                 );
 
-            if (isServer)
-            {
-                _apiProvider =
-                    new CommandApiProvider(
-                        new SpaceEngineersModMessageBus(),
-                        registry
-                    );
+            _apiProvider =
+                new CommandApiProvider(
+                    new SpaceEngineersModMessageBus(),
+                    registry
+                );
 
-                _apiProvider.Start();
-            }
+            _apiProvider.Start();
 
             bool isDedicated =
                 MyAPIGateway.Utilities.IsDedicated;
@@ -209,6 +206,7 @@ namespace MarcoZechner.CommandApi
                 new VanillaChatCommandAdapter(
                     input,
                     output,
+                    registry.GetPrefixes,
                     SubmitCommand
                 );
 

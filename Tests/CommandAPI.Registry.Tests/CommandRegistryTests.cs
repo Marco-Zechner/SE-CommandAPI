@@ -164,6 +164,66 @@ namespace MarcoZechner.CommandApi.Tests
         }
 
         [Fact]
+        public void ListOnlyPrefixesWithRegisteredCommands()
+        {
+            var registry =
+                new CommandRegistry();
+
+            Action unregisterCommandApi;
+            string commandApiError;
+
+            True(
+                registry.TryRegister(
+                    "/cmd",
+                    CreateDefinition(
+                        "status",
+                        new string[0],
+                        NoOpHandler
+                    ),
+                    out unregisterCommandApi,
+                    out commandApiError
+                ),
+                commandApiError
+            );
+
+            Action unregisterIme;
+            string imeError;
+
+            True(
+                registry.TryRegister(
+                    "/IME",
+                    CreateDefinition(
+                        "theme",
+                        new string[0],
+                        NoOpHandler
+                    ),
+                    out unregisterIme,
+                    out imeError
+                ),
+                imeError
+            );
+
+            Assert.Equal(
+                new[] { "/cmd", "/ime" },
+                registry.GetPrefixes()
+            );
+
+            unregisterIme();
+
+            Assert.Equal(
+                new[] { "/cmd" },
+                registry.GetPrefixes()
+            );
+
+            unregisterCommandApi();
+
+            Assert.Equal(
+                new string[0],
+                registry.GetPrefixes()
+            );
+        }
+
+        [Fact]
         public void IdenticalCommandNamesCanExistUnderDifferentPrefixes()
         {
             var registry =

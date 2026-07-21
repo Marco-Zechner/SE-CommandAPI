@@ -26,6 +26,24 @@ namespace MarcoZechner.CommandApi.Core
             get { return _definitions.Count; }
         }
 
+        public string[] GetPrefixes()
+        {
+            var prefixes =
+                new string[_definitionsByPrefix.Count];
+
+            _definitionsByPrefix.Keys.CopyTo(
+                prefixes,
+                0
+            );
+
+            Array.Sort(
+                prefixes,
+                StringComparer.Ordinal
+            );
+
+            return prefixes;
+        }
+
         public CommandDefinition[] GetDefinitions()
         {
             var copy =
@@ -41,6 +59,41 @@ namespace MarcoZechner.CommandApi.Core
             }
 
             return copy;
+        }
+
+        public CommandDefinition[] GetDefinitions(
+            string prefix
+        )
+        {
+            string normalizedPrefix =
+                CommandInput.NormalizePrefix(prefix);
+
+            Dictionary<string, CommandDefinition>
+                definitionsByName;
+
+            if (
+                !_definitionsByPrefix.TryGetValue(
+                    normalizedPrefix,
+                    out definitionsByName
+                )
+            )
+            {
+                return new CommandDefinition[0];
+            }
+
+            var definitions =
+                new List<CommandDefinition>();
+
+            foreach (
+                CommandDefinition definition
+                in definitionsByName.Values
+            )
+            {
+                if (!definitions.Contains(definition))
+                    definitions.Add(definition);
+            }
+
+            return definitions.ToArray();
         }
 
         public bool TryRegister(

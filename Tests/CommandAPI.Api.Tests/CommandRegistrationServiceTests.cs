@@ -26,6 +26,8 @@ namespace MarcoZechner.CommandApi.Tests
                 new Dictionary<string, object>
                 {
                     { "OwnerId", "Example.Mod" },
+                    { "Prefix", "/IME" },
+                    { "ExecutionLocation", "Client" },
                     { "CanonicalName", "echo" },
                     { "Aliases", new[] { "say" } },
                     {
@@ -82,6 +84,7 @@ namespace MarcoZechner.CommandApi.Tests
 
             Assert.True(
                 registry.TryResolve(
+                    "/ime",
                     "SAY",
                     out definition
                 )
@@ -98,7 +101,7 @@ namespace MarcoZechner.CommandApi.Tests
             );
 
             Assert.Equal(
-                CommandExecutionLocation.Server,
+                CommandExecutionLocation.Client,
                 definition.ExecutionLocation
             );
 
@@ -121,6 +124,7 @@ namespace MarcoZechner.CommandApi.Tests
                 definition.Handler(
                     context,
                     new CommandInput(
+                        "/ime",
                         "echo",
                         new[] { "MiXeD" }
                     )
@@ -156,6 +160,11 @@ namespace MarcoZechner.CommandApi.Tests
             Assert.Equal(
                 true,
                 observedRequest["IsServer"]
+            );
+
+            Assert.Equal(
+                "/ime",
+                observedRequest["Prefix"]
             );
 
             Assert.Equal(
@@ -255,6 +264,8 @@ namespace MarcoZechner.CommandApi.Tests
                 new Dictionary<string, object>
                 {
                     { "OwnerId", "Example.Mod" },
+                    { "Prefix", "/IME" },
+                    { "ExecutionLocation", "Client" },
                     { "CanonicalName", "echo" },
                     {
                         "PermissionRequirement",
