@@ -294,6 +294,385 @@ namespace MarcoZechner.CommandApi.Tests
             provider.Dispose();
         }
 
+        [Fact]
+        public void PublishesRegistrySuggestionsAndCompletesSelectedCommand()
+        {
+            var bus =
+                new RecordingModMessageBus();
+
+            var registry =
+                new CommandRegistry();
+
+            Register(
+                registry,
+                new CommandDefinition(
+                    "help",
+                    new string[0],
+                    "Lists available commands.",
+                    "Lists commands registered under /cmd.",
+                    "help [command]",
+                    "CommandAPI",
+                    CommandExecutionLocation.Client,
+                    0,
+                    "CommandAPI.Tests",
+                    NoOpHandler
+                )
+            );
+
+            Register(
+                registry,
+                new CommandDefinition(
+                    "ping",
+                    new[] { "latency" },
+                    "Tests command execution.",
+                    "Runs the command execution smoke path.",
+                    "ping",
+                    "CommandAPI",
+                    CommandExecutionLocation.Server,
+                    0,
+                    "CommandAPI.Tests",
+                    NoOpHandler
+                )
+            );
+
+            Action<string> inputChanged =
+                null;
+
+            Action<string> interaction =
+                null;
+
+            IDictionary<string, object> companionRequest =
+                null;
+
+            IDictionary<string, object> inputRequest =
+                null;
+
+            int interactionUnregisterCount = 0;
+            int routeUnregisterCount = 0;
+            int participantUnregisterCount = 0;
+            int clearCompanionCount = 0;
+
+            Func<
+                IDictionary<string, object>,
+                IDictionary<string, object>
+            > registerParticipant =
+                delegate(
+                    IDictionary<string, object> metadata
+                )
+                {
+                    return new Dictionary<string, object>
+                    {
+                        {
+                            "RegistrationId",
+                            "registration-1"
+                        },
+                        {
+                            "Unregister",
+                            new Action(
+                                delegate
+                                {
+                                    participantUnregisterCount++;
+                                }
+                            )
+                        }
+                    };
+                };
+
+            Func<
+                IDictionary<string, object>,
+                Action<string>,
+                Action<string>,
+                Action
+            > registerRoute =
+                delegate(
+                    IDictionary<string, object> metadata,
+                    Action<string> submit,
+                    Action<string> changed
+                )
+                {
+                    inputChanged = changed;
+
+                    return delegate
+                    {
+                        routeUnregisterCount++;
+                    };
+                };
+
+            Action<
+                IDictionary<string, object>
+            > appendTranscript =
+                delegate(
+                    IDictionary<string, object> entry
+                )
+                {
+                };
+
+            Func<
+                IDictionary<string, object>,
+                bool
+            > setCompanion =
+                delegate(
+                    IDictionary<string, object> request
+                )
+                {
+                    companionRequest = request;
+                    return true;
+                };
+
+            Func<
+                IDictionary<string, object>,
+                bool
+            > clearCompanion =
+                delegate(
+                    IDictionary<string, object> request
+                )
+                {
+                    clearCompanionCount++;
+                    return true;
+                };
+
+            Func<
+                IDictionary<string, object>,
+                Action<string>,
+                Action
+            > registerRouteInteraction =
+                delegate(
+                    IDictionary<string, object> metadata,
+                    Action<string> handler
+                )
+                {
+                    interaction = handler;
+
+                    return delegate
+                    {
+                        interactionUnregisterCount++;
+                    };
+                };
+
+            Func<
+                IDictionary<string, object>,
+                bool
+            > setInput =
+                delegate(
+                    IDictionary<string, object> request
+                )
+                {
+                    inputRequest = request;
+                    return true;
+                };
+
+            var endpoints =
+                new Dictionary<string, Delegate>(
+                    StringComparer.Ordinal
+                )
+                {
+                    {
+                        "RegisterParticipant",
+                        registerParticipant
+                    },
+                    {
+                        "RegisterRoute",
+                        registerRoute
+                    },
+                    {
+                        "AppendTranscript",
+                        appendTranscript
+                    },
+                    {
+                        "SetCompanion",
+                        setCompanion
+                    },
+                    {
+                        "ClearCompanion",
+                        clearCompanion
+                    },
+                    {
+                        "RegisterRouteInteraction",
+                        registerRouteInteraction
+                    },
+                    {
+                        "SetInput",
+                        setInput
+                    }
+                };
+
+            var provider =
+                new ApiDiscoveryProvider(
+                    bus,
+                    DiscoveryChannelId,
+                    new ApiModIdentity(
+                        "MarcoZechner.RichHudChatAPI",
+                        "RichHudChatAPI",
+                        new SemanticVersion(
+                            0,
+                            1,
+                            0
+                        )
+                    ),
+                    new ApiDescriptor(
+                        "MarcoZechner.RichHudChatAPI",
+                        new SemanticVersion(
+                            1,
+                            1,
+                            0
+                        )
+                    ),
+                    endpoints
+                );
+
+            var adapter =
+                new RichHudChatCommandAdapter(
+                    bus,
+                    42UL,
+                    delegate(
+                        ulong senderId,
+                        CommandInput input
+                    )
+                    {
+                    },
+                    registry
+                );
+
+            provider.Start();
+            adapter.Start();
+
+            Assert.True(adapter.IsConnected);
+            Assert.NotNull(inputChanged);
+            Assert.NotNull(interaction);
+
+            inputChanged(
+                "/cmd"
+            );
+
+            Assert.NotNull(companionRequest);
+            Assert.Equal(
+                "registration-1",
+                companionRequest["RegistrationId"]
+            );
+            Assert.Equal(
+                "commands",
+                companionRequest["RouteId"]
+            );
+            Assert.Equal(
+                0,
+                companionRequest["SelectedIndex"]
+            );
+
+            var encodedItems =
+                Assert.IsType<object[]>(
+                    companionRequest["Items"]
+                );
+
+            Assert.Equal(
+                2,
+                encodedItems.Length
+            );
+
+            var items =
+                new IDictionary<string, object>[]
+                {
+                    Assert.IsAssignableFrom<
+                        IDictionary<string, object>
+                    >(
+                        encodedItems[0]
+                    ),
+                    Assert.IsAssignableFrom<
+                        IDictionary<string, object>
+                    >(
+                        encodedItems[1]
+                    )
+                };
+
+            Assert.Equal("help", items[0]["PrimaryText"]);
+            Assert.Equal(
+                "Lists available commands.",
+                items[0]["SecondaryText"]
+            );
+            Assert.Equal(
+                "/cmd help",
+                items[0]["CompletionText"]
+            );
+
+            Assert.Equal("ping", items[1]["PrimaryText"]);
+            Assert.Equal(
+                "Tests command execution.",
+                items[1]["SecondaryText"]
+            );
+            Assert.Equal(
+                "/cmd ping",
+                items[1]["CompletionText"]
+            );
+
+            interaction(
+                "Next"
+            );
+
+            Assert.Equal(
+                1,
+                companionRequest["SelectedIndex"]
+            );
+
+            interaction(
+                "Complete"
+            );
+
+            Assert.NotNull(inputRequest);
+            Assert.Equal(
+                "registration-1",
+                inputRequest["RegistrationId"]
+            );
+            Assert.Equal(
+                "commands",
+                inputRequest["RouteId"]
+            );
+            Assert.Equal(
+                "/cmd ping",
+                inputRequest["Input"]
+            );
+
+            provider.Stop();
+
+            Assert.Equal(1, interactionUnregisterCount);
+            Assert.Equal(1, routeUnregisterCount);
+            Assert.Equal(1, participantUnregisterCount);
+            Assert.True(clearCompanionCount >= 1);
+
+            adapter.Dispose();
+            provider.Dispose();
+        }
+
+        private static void Register(
+            CommandRegistry registry,
+            CommandDefinition definition
+        )
+        {
+            string errorMessage;
+
+            Assert.True(
+                registry.TryRegister(
+                    CommandInputParser.Prefix,
+                    definition,
+                    out errorMessage
+                ),
+                errorMessage
+            );
+        }
+
+        private static CommandResult NoOpHandler(
+            CommandExecutionContext context,
+            CommandInput input
+        )
+        {
+            return new CommandResult(
+                true,
+                "OK",
+                "Completed.",
+                new string[0],
+                CommandSeverity.Success,
+                null
+            );
+        }
+
         private sealed class TranscriptLine
         {
             public string Author

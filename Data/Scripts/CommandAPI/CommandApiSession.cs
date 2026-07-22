@@ -214,7 +214,8 @@ namespace MarcoZechner.CommandApi
                 );
 
             TryStartRichHudChatAdapter(
-                localPeerId
+                localPeerId,
+                registry
             );
 
             _presentationAdapter =
@@ -238,14 +239,16 @@ namespace MarcoZechner.CommandApi
         }
 
         private void TryStartRichHudChatAdapter(
-            ulong localPeerId
+            ulong localPeerId,
+            CommandRegistry registry
         )
         {
             var adapter =
                 new RichHudChatCommandAdapter(
                     new SpaceEngineersModMessageBus(),
                     localPeerId,
-                    SubmitCommand
+                    SubmitCommand,
+                    registry
                 );
 
             _richHudChatAdapter =

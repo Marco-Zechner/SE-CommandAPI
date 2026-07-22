@@ -25,6 +25,18 @@ namespace MarcoZechner.CommandApi.Chat
         private const string AppendTranscriptEndpoint =
             "AppendTranscript";
 
+        private const string SetCompanionEndpoint =
+            "SetCompanion";
+
+        private const string ClearCompanionEndpoint =
+            "ClearCompanion";
+
+        private const string RegisterRouteInteractionEndpoint =
+            "RegisterRouteInteraction";
+
+        private const string SetInputEndpoint =
+            "SetInput";
+
         private const string OwnerId =
             "MarcoZechner.CommandAPI";
 
@@ -43,14 +55,37 @@ namespace MarcoZechner.CommandApi.Chat
         private readonly VanillaChatCommandSubmitter
             _submitter;
 
+        private readonly CommandRegistry _registry;
+
         private ApiDiscoveryConsumer _consumer;
 
         private Action _unregisterParticipant;
         private Action _unregisterRoute;
+        private Action _unregisterRouteInteraction;
 
         private Action<
             IDictionary<string, object>
         > _appendTranscript;
+
+        private Func<
+            IDictionary<string, object>,
+            bool
+        > _setCompanion;
+
+        private Func<
+            IDictionary<string, object>,
+            bool
+        > _clearCompanion;
+
+        private Func<
+            IDictionary<string, object>,
+            bool
+        > _setInput;
+
+        private CommandDefinition[] _suggestions =
+            new CommandDefinition[0];
+
+        private int _selectedSuggestionIndex;
 
         private string _registrationId;
         private bool _disposed;
@@ -76,6 +111,21 @@ namespace MarcoZechner.CommandApi.Chat
             ulong localPeerId,
             VanillaChatCommandSubmitter submitter
         )
+            : this(
+                messageBus,
+                localPeerId,
+                submitter,
+                null
+            )
+        {
+        }
+
+        public RichHudChatCommandAdapter(
+            IModMessageBus messageBus,
+            ulong localPeerId,
+            VanillaChatCommandSubmitter submitter,
+            CommandRegistry registry
+        )
         {
             if (messageBus == null)
                 throw new ArgumentNullException(nameof(messageBus));
@@ -86,6 +136,7 @@ namespace MarcoZechner.CommandApi.Chat
             _messageBus = messageBus;
             _localPeerId = localPeerId;
             _submitter = submitter;
+            _registry = registry;
         }
 
         public void Start()
@@ -292,6 +343,27 @@ namespace MarcoZechner.CommandApi.Chat
                 IDictionary<string, object>
             > appendTranscript;
 
+            Func<
+                IDictionary<string, object>,
+                bool
+            > setCompanion;
+
+            Func<
+                IDictionary<string, object>,
+                bool
+            > clearCompanion;
+
+            Func<
+                IDictionary<string, object>,
+                Action<string>,
+                Action
+            > registerRouteInteraction;
+
+            Func<
+                IDictionary<string, object>,
+                bool
+            > setInput;
+
             if (
                 !connection.TryGetEndpoint(
                     RegisterParticipantEndpoint,
@@ -328,6 +400,37 @@ namespace MarcoZechner.CommandApi.Chat
                 );
             }
 
+            bool hasSetCompanion =
+                connection.TryGetEndpoint(
+                    SetCompanionEndpoint,
+                    out setCompanion
+                );
+
+            bool hasClearCompanion =
+                connection.TryGetEndpoint(
+                    ClearCompanionEndpoint,
+                    out clearCompanion
+                );
+
+            bool hasRouteInteraction =
+                connection.TryGetEndpoint(
+                    RegisterRouteInteractionEndpoint,
+                    out registerRouteInteraction
+                );
+
+            bool hasSetInput =
+                connection.TryGetEndpoint(
+                    SetInputEndpoint,
+                    out setInput
+                );
+
+            bool supportsCompanion =
+                _registry != null
+                && hasSetCompanion
+                && hasClearCompanion
+                && hasRouteInteraction
+                && hasSetInput;
+
             IDictionary<string, object> registration =
                 registerParticipant(
                     new Dictionary<string, object>(
@@ -358,6 +461,15 @@ namespace MarcoZechner.CommandApi.Chat
             Action unregisterRoute =
                 null;
 
+            Action unregisterRouteInteraction =
+                null;
+
+            Action<string> inputChanged =
+                null;
+
+            if (supportsCompanion)
+                inputChanged = OnInputChanged;
+
             try
             {
                 unregisterRoute =
@@ -384,7 +496,7 @@ namespace MarcoZechner.CommandApi.Chat
                             }
                         },
                         OnSubmittedInput,
-                        null
+                        inputChanged
                     );
 
                 if (unregisterRoute == null)
@@ -393,9 +505,45 @@ namespace MarcoZechner.CommandApi.Chat
                         "RichHudChatAPI returned no route registration."
                     );
                 }
+
+                if (supportsCompanion)
+                {
+                    unregisterRouteInteraction =
+                        registerRouteInteraction(
+                            new Dictionary<string, object>(
+                                StringComparer.Ordinal
+                            )
+                            {
+                                {
+                                    "RegistrationId",
+                                    registrationId
+                                },
+                                {
+                                    "RouteId",
+                                    RouteId
+                                }
+                            },
+                            OnInteraction
+                        );
+
+                    if (unregisterRouteInteraction == null)
+                    {
+                        throw new InvalidOperationException(
+                            "RichHudChatAPI returned no interaction registration."
+                        );
+                    }
+                }
             }
             catch
             {
+                TryInvoke(
+                    unregisterRouteInteraction
+                );
+
+                TryInvoke(
+                    unregisterRoute
+                );
+
                 TryInvoke(
                     unregisterParticipant
                 );
@@ -410,11 +558,279 @@ namespace MarcoZechner.CommandApi.Chat
             _unregisterRoute =
                 unregisterRoute;
 
+            _unregisterRouteInteraction =
+                unregisterRouteInteraction;
+
             _appendTranscript =
                 appendTranscript;
 
+            _setCompanion =
+                supportsCompanion
+                    ? setCompanion
+                    : null;
+
+            _clearCompanion =
+                supportsCompanion
+                    ? clearCompanion
+                    : null;
+
+            _setInput =
+                supportsCompanion
+                    ? setInput
+                    : null;
+
             WriteLine(
                 "Ready. Use /cmd help."
+            );
+        }
+
+        private void OnInputChanged(
+            string text
+        )
+        {
+            if (
+                _disposed
+                || !IsConnected
+                || _registry == null
+                || _setCompanion == null
+            )
+            {
+                return;
+            }
+
+            string normalizedInput =
+                (text ?? string.Empty).Trim();
+
+            if (
+                !string.Equals(
+                    normalizedInput,
+                    CommandInputParser.Prefix,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                ClearSuggestions();
+                return;
+            }
+
+            CommandDefinition[] suggestions =
+                _registry.GetDefinitions(
+                    CommandInputParser.Prefix
+                );
+
+            Array.Sort(
+                suggestions,
+                delegate(
+                    CommandDefinition left,
+                    CommandDefinition right
+                )
+                {
+                    return string.Compare(
+                        left.CanonicalName,
+                        right.CanonicalName,
+                        StringComparison.Ordinal
+                    );
+                }
+            );
+
+            _suggestions = suggestions;
+            _selectedSuggestionIndex = 0;
+
+            if (suggestions.Length == 0)
+            {
+                ClearSuggestions();
+                return;
+            }
+
+            PublishSuggestions();
+        }
+
+        private void OnInteraction(
+            string interaction
+        )
+        {
+            if (
+                _disposed
+                || !IsConnected
+                || _suggestions.Length == 0
+            )
+            {
+                return;
+            }
+
+            if (
+                string.Equals(
+                    interaction,
+                    "Previous",
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                _selectedSuggestionIndex =
+                    (
+                        _selectedSuggestionIndex
+                        + _suggestions.Length
+                        - 1
+                    )
+                    % _suggestions.Length;
+
+                PublishSuggestions();
+                return;
+            }
+
+            if (
+                string.Equals(
+                    interaction,
+                    "Next",
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                _selectedSuggestionIndex =
+                    (
+                        _selectedSuggestionIndex
+                        + 1
+                    )
+                    % _suggestions.Length;
+
+                PublishSuggestions();
+                return;
+            }
+
+            if (
+                string.Equals(
+                    interaction,
+                    "Complete",
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                CompleteSelectedSuggestion();
+            }
+        }
+
+        private void PublishSuggestions()
+        {
+            if (
+                _setCompanion == null
+                || _registrationId == null
+                || _suggestions.Length == 0
+            )
+            {
+                return;
+            }
+
+            var items =
+                new object[_suggestions.Length];
+
+            for (
+                int index = 0;
+                index < _suggestions.Length;
+                index++
+            )
+            {
+                CommandDefinition definition =
+                    _suggestions[index];
+
+                items[index] =
+                    new Dictionary<string, object>(
+                        StringComparer.Ordinal
+                    )
+                    {
+                        {
+                            "PrimaryText",
+                            definition.CanonicalName
+                        },
+                        {
+                            "SecondaryText",
+                            definition.ShortDescription
+                        },
+                        {
+                            "CompletionText",
+                            CommandInputParser.Prefix
+                                + " "
+                                + definition.CanonicalName
+                        }
+                    };
+            }
+
+            TryRequest(
+                _setCompanion,
+                new Dictionary<string, object>(
+                    StringComparer.Ordinal
+                )
+                {
+                    {
+                        "RegistrationId",
+                        _registrationId
+                    },
+                    {
+                        "RouteId",
+                        RouteId
+                    },
+                    {
+                        "Items",
+                        items
+                    },
+                    {
+                        "SelectedIndex",
+                        _selectedSuggestionIndex
+                    }
+                }
+            );
+        }
+
+        private void CompleteSelectedSuggestion()
+        {
+            if (
+                _setInput == null
+                || _registrationId == null
+                || _selectedSuggestionIndex < 0
+                || _selectedSuggestionIndex >= _suggestions.Length
+            )
+            {
+                return;
+            }
+
+            CommandDefinition definition =
+                _suggestions[
+                    _selectedSuggestionIndex
+                ];
+
+            TryRequest(
+                _setInput,
+                new Dictionary<string, object>(
+                    StringComparer.Ordinal
+                )
+                {
+                    {
+                        "RegistrationId",
+                        _registrationId
+                    },
+                    {
+                        "RouteId",
+                        RouteId
+                    },
+                    {
+                        "Input",
+                        CommandInputParser.Prefix
+                            + " "
+                            + definition.CanonicalName
+                    }
+                }
+            );
+        }
+
+        private void ClearSuggestions()
+        {
+            _suggestions =
+                new CommandDefinition[0];
+
+            _selectedSuggestionIndex = 0;
+
+            TryClearCompanion(
+                _clearCompanion,
+                _registrationId
             );
         }
 
@@ -523,16 +939,45 @@ namespace MarcoZechner.CommandApi.Chat
 
         private void ReleaseConnection()
         {
+            Action unregisterRouteInteraction =
+                _unregisterRouteInteraction;
+
             Action unregisterRoute =
                 _unregisterRoute;
 
             Action unregisterParticipant =
                 _unregisterParticipant;
 
+            Func<
+                IDictionary<string, object>,
+                bool
+            > clearCompanion =
+                _clearCompanion;
+
+            string registrationId =
+                _registrationId;
+
+            TryClearCompanion(
+                clearCompanion,
+                registrationId
+            );
+
             _registrationId = null;
             _appendTranscript = null;
+            _setCompanion = null;
+            _clearCompanion = null;
+            _setInput = null;
+            _unregisterRouteInteraction = null;
             _unregisterRoute = null;
             _unregisterParticipant = null;
+            _suggestions =
+                new CommandDefinition[0];
+
+            _selectedSuggestionIndex = 0;
+
+            TryInvoke(
+                unregisterRouteInteraction
+            );
 
             TryInvoke(
                 unregisterRoute
@@ -541,6 +986,61 @@ namespace MarcoZechner.CommandApi.Chat
             TryInvoke(
                 unregisterParticipant
             );
+        }
+
+        private static void TryClearCompanion(
+            Func<
+                IDictionary<string, object>,
+                bool
+            > clearCompanion,
+            string registrationId
+        )
+        {
+            if (
+                clearCompanion == null
+                || registrationId == null
+            )
+            {
+                return;
+            }
+
+            TryRequest(
+                clearCompanion,
+                new Dictionary<string, object>(
+                    StringComparer.Ordinal
+                )
+                {
+                    {
+                        "RegistrationId",
+                        registrationId
+                    },
+                    {
+                        "RouteId",
+                        RouteId
+                    }
+                }
+            );
+        }
+
+        private static bool TryRequest(
+            Func<
+                IDictionary<string, object>,
+                bool
+            > endpoint,
+            IDictionary<string, object> request
+        )
+        {
+            if (endpoint == null)
+                return false;
+
+            try
+            {
+                return endpoint(request);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static string ReadRegistrationId(
