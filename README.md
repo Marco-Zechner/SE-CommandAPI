@@ -20,6 +20,22 @@ The current vertical slice supports:
 Unknown prefixes are left untouched as ordinary chat. A registered prefix is
 removed from interception when its final command is unregistered.
 
+## RichHudChatAPI integration
+
+RichHudChatAPI is optional and negotiated by API descriptor version:
+
+- `1.0` provides `/cmd` route submission and transcript presentation.
+- `1.1` adds command suggestions, selection, and completion interactions.
+- `1.2` lets `/` activate CommandAPI draft context while submissions remain
+  restricted to the `/cmd` route.
+- `1.3` adds styled headers, command rows, input spans, control hints, filtering,
+  and unknown-command feedback.
+
+CommandAPI owns command lookup, filtering, selection, completion, validation
+semantics, and execution. RichHudChatAPI only renders generic presentation data
+and forwards input interactions. Older compatible providers retain their
+earlier behavior without receiving unsupported metadata.
+
 ## Prefix collision policy
 
 Prefixes are shared namespaces rather than exclusively owned resources.
