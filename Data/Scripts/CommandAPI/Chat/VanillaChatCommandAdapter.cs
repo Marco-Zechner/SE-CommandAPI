@@ -12,6 +12,9 @@ namespace MarcoZechner.CommandApi.Chat
         private readonly IVanillaChatInput _input;
         private readonly IVanillaChatOutput _output;
 
+        private readonly Func<string[]>
+            _prefixProvider;
+
         private readonly VanillaChatCommandSubmitter
             _submitter;
 
@@ -22,12 +25,40 @@ namespace MarcoZechner.CommandApi.Chat
             IVanillaChatOutput output,
             VanillaChatCommandSubmitter submitter
         )
+            : this(
+                input,
+                output,
+                delegate
+                {
+                    return new[]
+                    {
+                        CommandInputParser.Prefix
+                    };
+                },
+                submitter
+            )
+        {
+        }
+
+        public VanillaChatCommandAdapter(
+            IVanillaChatInput input,
+            IVanillaChatOutput output,
+            Func<string[]> prefixProvider,
+            VanillaChatCommandSubmitter submitter
+        )
         {
             if (input == null)
                 throw new ArgumentNullException(nameof(input));
 
             if (output == null)
                 throw new ArgumentNullException(nameof(output));
+
+            if (prefixProvider == null)
+            {
+                throw new ArgumentNullException(
+                    nameof(prefixProvider)
+                );
+            }
 
             if (submitter == null)
             {
@@ -38,6 +69,7 @@ namespace MarcoZechner.CommandApi.Chat
 
             _input = input;
             _output = output;
+            _prefixProvider = prefixProvider;
             _submitter = submitter;
 
             _input.MessageEntered += OnMessageEntered;
@@ -128,16 +160,39 @@ namespace MarcoZechner.CommandApi.Chat
             if (_disposed)
                 return;
 
-            CommandParseResult parseResult =
-                CommandInputParser.Parse(message);
+            string[] prefixes =
+                _prefixProvider()
+                ?? new string[0];
 
-            if (
-                parseResult.Status
-                    == CommandParseStatus.NotCommand
+            CommandParseResult parseResult =
+                null;
+
+            for (
+                int index = 0;
+                index < prefixes.Length;
+                index++
             )
             {
-                return;
+                CommandParseResult candidate =
+                    CommandInputParser.Parse(
+                        message,
+                        prefixes[index]
+                    );
+
+                if (
+                    candidate.Status
+                        == CommandParseStatus.NotCommand
+                )
+                {
+                    continue;
+                }
+
+                parseResult = candidate;
+                break;
             }
+
+            if (parseResult == null)
+                return;
 
             sendToOthers = false;
 

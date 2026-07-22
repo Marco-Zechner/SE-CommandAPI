@@ -88,6 +88,64 @@ namespace MarcoZechner.CommandApi.Tests
         }
 
         [Fact]
+        public void SuppressOnlyProvidedCommandPrefixes()
+        {
+            var input = new FakeChatInput();
+            var output = new FakeChatOutput();
+
+            CommandInput observedInput = null;
+
+            var adapter =
+                new VanillaChatCommandAdapter(
+                    input,
+                    output,
+                    delegate
+                    {
+                        return new[]
+                        {
+                            "/cmd",
+                            "/ime"
+                        };
+                    },
+                    delegate(
+                        ulong senderId,
+                        CommandInput commandInput
+                    )
+                    {
+                        observedInput = commandInput;
+                    }
+                );
+
+            bool sendImeToOthers = true;
+
+            input.Raise(
+                42UL,
+                "/IME theme dark",
+                ref sendImeToOthers
+            );
+
+            Assert.False(sendImeToOthers);
+            Assert.NotNull(observedInput);
+            Assert.Equal("/ime", observedInput.Prefix);
+            Assert.Equal("theme", observedInput.CommandName);
+
+            observedInput = null;
+            bool sendUnknownToOthers = true;
+
+            input.Raise(
+                42UL,
+                "/other theme dark",
+                ref sendUnknownToOthers
+            );
+
+            Assert.True(sendUnknownToOthers);
+            Assert.Null(observedInput);
+            Assert.Empty(output.Lines);
+
+            adapter.Dispose();
+        }
+
+        [Fact]
         public void SuppressMalformedCommandAndShowParseError()
         {
             var input = new FakeChatInput();

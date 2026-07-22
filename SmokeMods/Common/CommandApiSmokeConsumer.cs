@@ -19,6 +19,9 @@ namespace MarcoZechner.CommandApi.Smoke
         private const string RegisterCommandEndpoint =
             "RegisterCommand";
 
+        private const string Prefix =
+            "/smoke";
+
         private const string PreferredCommandName =
             "smoke";
 
@@ -184,7 +187,8 @@ namespace MarcoZechner.CommandApi.Smoke
                     registerCommand(
                         CreateMetadata(
                             _qualifiedCommandName,
-                            "Deterministic command for "
+                            "Server",
+                            "Deterministic server command for "
                                 + _displayName
                                 + "."
                         ),
@@ -192,7 +196,7 @@ namespace MarcoZechner.CommandApi.Smoke
                     );
 
                 Log(
-                    "registered /cmd "
+                    "registered " + Prefix + " "
                     + _qualifiedCommandName
                     + "."
                 );
@@ -213,13 +217,14 @@ namespace MarcoZechner.CommandApi.Smoke
                     registerCommand(
                         CreateMetadata(
                             PreferredCommandName,
-                            "Load-order winner for the shared smoke command."
+                            "Client",
+                            "Load-order winner for the shared local smoke command."
                         ),
                         HandleCommand
                     );
 
                 Log(
-                    "won the shared /cmd "
+                    "won the shared local " + Prefix + " "
                     + PreferredCommandName
                     + " name."
                 );
@@ -227,9 +232,9 @@ namespace MarcoZechner.CommandApi.Smoke
             catch (InvalidOperationException exception)
             {
                 Log(
-                    "shared /cmd "
+                    "shared " + Prefix + " "
                     + PreferredCommandName
-                    + " is already owned; use /cmd "
+                    + " is already owned; use " + Prefix + " "
                     + _qualifiedCommandName
                     + ". Provider said: "
                     + exception.Message
@@ -253,6 +258,7 @@ namespace MarcoZechner.CommandApi.Smoke
         private IDictionary<string, object>
             CreateMetadata(
                 string canonicalName,
+                string executionLocation,
                 string description
             )
         {
@@ -263,6 +269,14 @@ namespace MarcoZechner.CommandApi.Smoke
                 {
                     "OwnerId",
                     _ownerId
+                },
+                {
+                    "Prefix",
+                    Prefix
+                },
+                {
+                    "ExecutionLocation",
+                    executionLocation
                 },
                 {
                     "CanonicalName",

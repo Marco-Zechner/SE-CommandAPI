@@ -9,10 +9,10 @@ namespace MarcoZechner.CommandApi.Networking
         IDisposable
     {
         public const string RequestMessageType =
-            "CommandAPI.CommandRequest.v1";
+            "CommandAPI.CommandRequest.v2";
 
         public const string ResultMessageType =
-            "CommandAPI.CommandResult.v1";
+            "CommandAPI.CommandResult.v2";
 
         private readonly NetworkEndpoint _endpoint;
         private readonly CommandExecutor _executor;
@@ -139,6 +139,7 @@ namespace MarcoZechner.CommandApi.Networking
                 var request =
                     new CommandRequestMessage(
                         requestId,
+                        input.Prefix,
                         input.CommandName,
                         input.Arguments
                     );
@@ -221,6 +222,7 @@ namespace MarcoZechner.CommandApi.Networking
                 _executor.Execute(
                     executionContext,
                     new CommandInput(
+                        request.Prefix,
                         request.CommandName,
                         request.Arguments
                     )

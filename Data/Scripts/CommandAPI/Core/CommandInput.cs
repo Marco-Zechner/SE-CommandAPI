@@ -7,6 +7,8 @@ namespace MarcoZechner.CommandApi.Core
     {
         private readonly string[] _arguments;
 
+        public string Prefix { get; }
+
         public string CommandName { get; }
 
         public string[] Arguments
@@ -33,16 +35,32 @@ namespace MarcoZechner.CommandApi.Core
             string commandName,
             IList<string> arguments
         )
+            : this(
+                CommandInputParser.Prefix,
+                commandName,
+                arguments
+            )
+        {
+        }
+
+        public CommandInput(
+            string prefix,
+            string commandName,
+            IList<string> arguments
+        )
         {
             if (string.IsNullOrWhiteSpace(commandName))
+            {
                 throw new ArgumentException(
                     "Command name is required.",
                     nameof(commandName)
                 );
+            }
 
             if (arguments == null)
                 throw new ArgumentNullException(nameof(arguments));
 
+            Prefix = NormalizePrefix(prefix);
             CommandName = commandName;
             _arguments = new string[arguments.Count];
 
@@ -52,8 +70,60 @@ namespace MarcoZechner.CommandApi.Core
                 index++
             )
             {
+                if (arguments[index] == null)
+                {
+                    throw new ArgumentException(
+                        "Command arguments cannot contain null values.",
+                        nameof(arguments)
+                    );
+                }
+
                 _arguments[index] = arguments[index];
             }
+        }
+
+        internal static string NormalizePrefix(
+            string prefix
+        )
+        {
+            if (string.IsNullOrWhiteSpace(prefix))
+            {
+                throw new ArgumentException(
+                    "A command prefix is required.",
+                    nameof(prefix)
+                );
+            }
+
+            string normalized =
+                prefix.Trim();
+
+            if (
+                normalized.Length < 2
+                || normalized[0] != '/'
+            )
+            {
+                throw new ArgumentException(
+                    "A command prefix must begin with '/'.",
+                    nameof(prefix)
+                );
+            }
+
+            for (
+                int index = 1;
+                index < normalized.Length;
+                index++
+            )
+            {
+                if (char.IsWhiteSpace(normalized[index]))
+                {
+                    throw new ArgumentException(
+                        "A command prefix cannot contain whitespace.",
+                        nameof(prefix)
+                    );
+                }
+            }
+
+            return normalized.ToLowerInvariant();
         }
     }
 }

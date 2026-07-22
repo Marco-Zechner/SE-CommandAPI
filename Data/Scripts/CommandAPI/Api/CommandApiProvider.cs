@@ -84,7 +84,7 @@ namespace MarcoZechner.CommandApi.Api
                         ApiId,
                         new SemanticVersion(
                             1,
-                            0,
+                            1,
                             0
                         )
                     ),

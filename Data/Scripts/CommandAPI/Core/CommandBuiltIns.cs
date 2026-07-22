@@ -243,7 +243,7 @@ namespace MarcoZechner.CommandApi.Core
                 return Failure(
                     "Invalid help request",
                     "Help accepts at most one command name.",
-                    "/cmd help [command]"
+                    input.Prefix + " help [command]"
                 );
             }
 
@@ -253,6 +253,7 @@ namespace MarcoZechner.CommandApi.Core
 
                 if (
                     !registry.TryResolve(
+                        input.Prefix,
                         arguments[0],
                         out definition
                     )
@@ -264,15 +265,15 @@ namespace MarcoZechner.CommandApi.Core
                         "Unknown command '"
                             + arguments[0]
                             + "'.",
-                        "/cmd help"
+                        input.Prefix + " help"
                     );
                 }
 
-                return BuildDetailedHelp(definition);
+                return BuildDetailedHelp(input.Prefix, definition);
             }
 
             CommandDefinition[] definitions =
-                registry.GetDefinitions();
+                registry.GetDefinitions(input.Prefix);
 
             var lines =
                 new List<string>();
@@ -307,6 +308,7 @@ namespace MarcoZechner.CommandApi.Core
         }
 
         private static CommandResult BuildDetailedHelp(
+            string prefix,
             CommandDefinition definition
         )
         {
@@ -314,7 +316,7 @@ namespace MarcoZechner.CommandApi.Core
                 new List<string>();
 
             lines.Add(
-                "Usage: /cmd " + definition.Usage
+                "Usage: " + prefix + " " + definition.Usage
             );
 
             string[] aliases =

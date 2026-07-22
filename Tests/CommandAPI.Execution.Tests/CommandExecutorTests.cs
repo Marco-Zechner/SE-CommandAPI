@@ -61,6 +61,111 @@ namespace MarcoZechner.CommandApi.Tests
         }
 
         [Fact]
+        public void ResolveCommandUsingInputPrefix()
+        {
+            var registry =
+                new CommandRegistry();
+
+            string commandApiError;
+
+            True(
+                registry.TryRegister(
+                    "/cmd",
+                    CreateDefinition(
+                        "status",
+                        CommandExecutionLocation.Server,
+                        0,
+                        delegate(
+                            CommandExecutionContext context,
+                            CommandInput input
+                        )
+                        {
+                            return Success("CommandAPI");
+                        }
+                    ),
+                    out commandApiError
+                ),
+                commandApiError
+            );
+
+            string imeError;
+
+            True(
+                registry.TryRegister(
+                    "/ime",
+                    CreateDefinition(
+                        "status",
+                        CommandExecutionLocation.Server,
+                        0,
+                        delegate(
+                            CommandExecutionContext context,
+                            CommandInput input
+                        )
+                        {
+                            return Success("IME");
+                        }
+                    ),
+                    out imeError
+                ),
+                imeError
+            );
+
+            var executor =
+                new CommandExecutor(registry);
+
+            CommandResult result =
+                executor.Execute(
+                    ServerContext(0),
+                    new CommandInput(
+                        "/IME",
+                        "STATUS",
+                        new string[0]
+                    )
+                );
+
+            True(
+                result.IsSuccess,
+                "Prefix-scoped execution did not succeed."
+            );
+
+            Equal(
+                "IME",
+                result.DetailLines[0],
+                "resolved prefix"
+            );
+        }
+
+        [Fact]
+        public void UnknownCommandUsesInputPrefixInUsageHint()
+        {
+            var executor =
+                new CommandExecutor(
+                    new CommandRegistry()
+                );
+
+            CommandResult result =
+                executor.Execute(
+                    ServerContext(0),
+                    new CommandInput(
+                        "/ime",
+                        "missing",
+                        new string[0]
+                    )
+                );
+
+            False(
+                result.IsSuccess,
+                "Unknown command unexpectedly succeeded."
+            );
+
+            Equal(
+                "/ime help",
+                result.UsageHint,
+                "usage hint"
+            );
+        }
+
+        [Fact]
         public void ReturnStructuredUnknownCommandFailure()
         {
             var executor =
@@ -104,6 +209,307 @@ namespace MarcoZechner.CommandApi.Tests
                 "/cmd help",
                 result.UsageHint,
                 "usage hint"
+            );
+        }
+
+        [Fact]
+        public void SubmitClientCommandLocally()
+        {
+            var registry =
+                new CommandRegistry();
+
+            bool handlerCalled = false;
+            string registrationError;
+
+            True(
+                registry.TryRegister(
+                    "/ime",
+                    CreateDefinition(
+                        "theme",
+                        CommandExecutionLocation.Client,
+                        0,
+                        delegate(
+                            CommandExecutionContext context,
+                            CommandInput input
+                        )
+                        {
+                            handlerCalled = true;
+
+                            False(
+                                context.IsServer,
+                                "Client command received a server context."
+                            );
+
+                            return Success("local-client");
+                        }
+                    ),
+                    out registrationError
+                ),
+                registrationError
+            );
+
+            var executor =
+                new CommandExecutor(registry);
+
+            int serverSubmissionCount = 0;
+            CommandResult observedResult = null;
+
+            var dispatcher =
+                new CommandSubmissionDispatcher(
+                    registry,
+                    executor,
+                    delegate(
+                        ulong senderId,
+                        string requestId
+                    )
+                    {
+                        Equal(
+                            42UL,
+                            senderId,
+                            "local sender"
+                        );
+
+                        Equal(
+                            "local-client-001",
+                            requestId,
+                            "local request ID"
+                        );
+
+                        return ClientContext(0);
+                    },
+                    delegate(
+                        string requestId,
+                        CommandInput input
+                    )
+                    {
+                        serverSubmissionCount++;
+                    },
+                    delegate(CommandResult result)
+                    {
+                        observedResult = result;
+                    }
+                );
+
+            dispatcher.Submit(
+                42UL,
+                "local-client-001",
+                new CommandInput(
+                    "/ime",
+                    "theme",
+                    new string[0]
+                )
+            );
+
+            True(
+                handlerCalled,
+                "Client handler did not execute locally."
+            );
+
+            Equal(
+                0,
+                serverSubmissionCount,
+                "server submission count"
+            );
+
+            True(
+                observedResult != null,
+                "Local result was not presented."
+            );
+
+            True(
+                observedResult.IsSuccess,
+                "Local client command did not succeed."
+            );
+
+            Equal(
+                "local-client",
+                observedResult.DetailLines[0],
+                "local result"
+            );
+        }
+
+        [Fact]
+        public void SubmitEitherCommandLocally()
+        {
+            var registry =
+                new CommandRegistry();
+
+            string registrationError;
+
+            True(
+                registry.TryRegister(
+                    CreateDefinition(
+                        "status",
+                        CommandExecutionLocation.Either,
+                        0,
+                        delegate(
+                            CommandExecutionContext context,
+                            CommandInput input
+                        )
+                        {
+                            return Success(
+                                context.IsServer
+                                    ? "server"
+                                    : "client"
+                            );
+                        }
+                    ),
+                    out registrationError
+                ),
+                registrationError
+            );
+
+            CommandResult observedResult = null;
+
+            var dispatcher =
+                new CommandSubmissionDispatcher(
+                    registry,
+                    new CommandExecutor(registry),
+                    delegate(
+                        ulong senderId,
+                        string requestId
+                    )
+                    {
+                        return ClientContext(0);
+                    },
+                    delegate(
+                        string requestId,
+                        CommandInput input
+                    )
+                    {
+                        throw new InvalidOperationException(
+                            "Either command was sent to the server."
+                        );
+                    },
+                    delegate(CommandResult result)
+                    {
+                        observedResult = result;
+                    }
+                );
+
+            dispatcher.Submit(
+                43UL,
+                "local-either-001",
+                new CommandInput(
+                    "status",
+                    new string[0]
+                )
+            );
+
+            True(
+                observedResult != null,
+                "Either result was not presented locally."
+            );
+
+            Equal(
+                "client",
+                observedResult.DetailLines[0],
+                "Either execution side"
+            );
+        }
+
+        [Fact]
+        public void SubmitServerCommandThroughNetwork()
+        {
+            var registry =
+                new CommandRegistry();
+
+            bool handlerCalled = false;
+            string registrationError;
+
+            True(
+                registry.TryRegister(
+                    "/ime",
+                    CreateDefinition(
+                        "admin",
+                        CommandExecutionLocation.Server,
+                        0,
+                        delegate(
+                            CommandExecutionContext context,
+                            CommandInput input
+                        )
+                        {
+                            handlerCalled = true;
+                            return Success("server");
+                        }
+                    ),
+                    out registrationError
+                ),
+                registrationError
+            );
+
+            int serverSubmissionCount = 0;
+            int localResultCount = 0;
+
+            var dispatcher =
+                new CommandSubmissionDispatcher(
+                    registry,
+                    new CommandExecutor(registry),
+                    delegate(
+                        ulong senderId,
+                        string requestId
+                    )
+                    {
+                        throw new InvalidOperationException(
+                            "Server command requested a local context."
+                        );
+                    },
+                    delegate(
+                        string requestId,
+                        CommandInput input
+                    )
+                    {
+                        serverSubmissionCount++;
+
+                        Equal(
+                            "server-001",
+                            requestId,
+                            "server request ID"
+                        );
+
+                        Equal(
+                            "/ime",
+                            input.Prefix,
+                            "server prefix"
+                        );
+
+                        Equal(
+                            "admin",
+                            input.CommandName,
+                            "server command"
+                        );
+                    },
+                    delegate(CommandResult result)
+                    {
+                        localResultCount++;
+                    }
+                );
+
+            dispatcher.Submit(
+                44UL,
+                "server-001",
+                new CommandInput(
+                    "/ime",
+                    "admin",
+                    new string[0]
+                )
+            );
+
+            False(
+                handlerCalled,
+                "Server handler executed locally."
+            );
+
+            Equal(
+                1,
+                serverSubmissionCount,
+                "server submission count"
+            );
+
+            Equal(
+                0,
+                localResultCount,
+                "local result count"
             );
         }
 

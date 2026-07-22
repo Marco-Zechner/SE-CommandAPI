@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using MarcoZechner.CommandApi.Core;
 
 namespace MarcoZechner.CommandApi.Networking
 {
@@ -8,6 +9,8 @@ namespace MarcoZechner.CommandApi.Networking
         private readonly string[] _arguments;
 
         public string RequestId { get; }
+
+        public string Prefix { get; }
 
         public string CommandName { get; }
 
@@ -21,6 +24,21 @@ namespace MarcoZechner.CommandApi.Networking
 
         public CommandRequestMessage(
             string requestId,
+            string commandName,
+            IList<string> arguments
+        )
+            : this(
+                requestId,
+                CommandInputParser.Prefix,
+                commandName,
+                arguments
+            )
+        {
+        }
+
+        public CommandRequestMessage(
+            string requestId,
+            string prefix,
             string commandName,
             IList<string> arguments
         )
@@ -45,6 +63,7 @@ namespace MarcoZechner.CommandApi.Networking
                 throw new ArgumentNullException(nameof(arguments));
 
             RequestId = requestId;
+            Prefix = CommandInput.NormalizePrefix(prefix);
             CommandName = commandName;
             _arguments = new string[arguments.Count];
 

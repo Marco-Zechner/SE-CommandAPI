@@ -38,6 +38,26 @@ namespace MarcoZechner.CommandApi.Api
                     "OwnerId"
                 );
 
+            string prefix =
+                ReadOptionalString(
+                    metadata,
+                    "Prefix"
+                );
+
+            if (string.IsNullOrWhiteSpace(prefix))
+                prefix = CommandInputParser.Prefix;
+
+            prefix =
+                CommandInput.NormalizePrefix(prefix);
+
+            CommandExecutionLocation
+                executionLocation =
+                    ReadOptionalExecutionLocation(
+                        metadata,
+                        "ExecutionLocation",
+                        CommandExecutionLocation.Server
+                    );
+
             string canonicalName =
                 ReadRequiredString(
                     metadata,
@@ -89,7 +109,7 @@ namespace MarcoZechner.CommandApi.Api
                     helpText,
                     usage,
                     category,
-                    CommandExecutionLocation.Server,
+                    executionLocation,
                     permissionRequirement,
                     ownerId,
                     delegate(
@@ -110,6 +130,7 @@ namespace MarcoZechner.CommandApi.Api
 
             if (
                 !_registry.TryRegister(
+                    prefix,
                     definition,
                     out unregister,
                     out errorMessage
@@ -161,6 +182,10 @@ namespace MarcoZechner.CommandApi.Api
                     {
                         "IsServer",
                         context.IsServer
+                    },
+                    {
+                        "Prefix",
+                        input.Prefix
                     },
                     {
                         "CommandName",
@@ -316,6 +341,55 @@ namespace MarcoZechner.CommandApi.Api
             }
 
             return text;
+        }
+
+        private static CommandExecutionLocation
+            ReadOptionalExecutionLocation(
+                IDictionary<string, object> values,
+                string key,
+                CommandExecutionLocation defaultValue
+            )
+        {
+            object value;
+
+            if (!values.TryGetValue(key, out value))
+                return defaultValue;
+
+            string text = value as string;
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                throw new ArgumentException(
+                    "Field '"
+                    + key
+                    + "' must name an execution location.",
+                    nameof(values)
+                );
+            }
+
+            CommandExecutionLocation location;
+
+            if (
+                !Enum.TryParse(
+                    text,
+                    true,
+                    out location
+                )
+                || !Enum.IsDefined(
+                    typeof(CommandExecutionLocation),
+                    location
+                )
+            )
+            {
+                throw new ArgumentException(
+                    "Field '"
+                    + key
+                    + "' contains an unsupported execution location.",
+                    nameof(values)
+                );
+            }
+
+            return location;
         }
 
         private static int ReadOptionalInt32(

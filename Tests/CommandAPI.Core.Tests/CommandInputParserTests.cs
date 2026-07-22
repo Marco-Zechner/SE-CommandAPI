@@ -107,6 +107,56 @@ namespace MarcoZechner.CommandApi.Tests
         }
 
         [Fact]
+        public void ParseExplicitPrefixAndPreserveArgumentCasing()
+        {
+            CommandParseResult result =
+                CommandInputParser.Parse(
+                    "/IME reset \"MiXeD Value\"",
+                    "/ime"
+                );
+
+            Equal(
+                CommandParseStatus.Success,
+                result.Status,
+                "status"
+            );
+
+            Equal(
+                "/ime",
+                result.Input.Prefix,
+                "prefix"
+            );
+
+            Equal(
+                "reset",
+                result.Input.CommandName,
+                "command name"
+            );
+
+            SequenceEqual(
+                new[] { "MiXeD Value" },
+                result.Input.Arguments,
+                "arguments"
+            );
+        }
+
+        [Fact]
+        public void ExplicitPrefixLeavesOtherSlashCommandsUntouched()
+        {
+            CommandParseResult result =
+                CommandInputParser.Parse(
+                    "/other reset",
+                    "/ime"
+                );
+
+            Equal(
+                CommandParseStatus.NotCommand,
+                result.Status,
+                "status"
+            );
+        }
+
+        [Fact]
         public void ProtectStoredArgumentsFromMutation()
         {
             var input =

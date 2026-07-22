@@ -71,7 +71,7 @@ namespace MarcoZechner.CommandApi.Tests
             );
 
             Assert.Equal(
-                "1.0.0",
+                "1.1.0",
                 announcement.Descriptor.Version.ToString()
             );
 

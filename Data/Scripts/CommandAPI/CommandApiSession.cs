@@ -19,10 +19,10 @@ namespace MarcoZechner.CommandApi
             "CommandAPI";
 
         private const string CommandApiVersion =
-            "0.1.0";
+            "0.2.0";
 
         private const string ProtocolVersion =
-            "1.0.0";
+            "2.0.0";
 
         // Low 16 bits of FNV-1a for
         // "MarcoZechner.CommandAPI.Network.v1".
@@ -35,6 +35,9 @@ namespace MarcoZechner.CommandApi
         private CommandNetworkCoordinator
             _networkCoordinator;
 
+        private CommandSubmissionDispatcher
+            _submissionDispatcher;
+
         private CommandApiProvider
             _apiProvider;
 
@@ -43,6 +46,9 @@ namespace MarcoZechner.CommandApi
 
         private VanillaChatCommandAdapter
             _chatAdapter;
+
+        private RichHudChatCommandAdapter
+            _richHudChatAdapter;
 
         private string _networkState =
             "Not initialized";
@@ -154,16 +160,13 @@ namespace MarcoZechner.CommandApi
                     PresentNetworkResult
                 );
 
-            if (isServer)
-            {
-                _apiProvider =
-                    new CommandApiProvider(
-                        new SpaceEngineersModMessageBus(),
-                        registry
-                    );
+            _apiProvider =
+                new CommandApiProvider(
+                    new SpaceEngineersModMessageBus(),
+                    registry
+                );
 
-                _apiProvider.Start();
-            }
+            _apiProvider.Start();
 
             bool isDedicated =
                 MyAPIGateway.Utilities.IsDedicated;
@@ -185,6 +188,15 @@ namespace MarcoZechner.CommandApi
                 return;
             }
 
+            _submissionDispatcher =
+                new CommandSubmissionDispatcher(
+                    registry,
+                    executor,
+                    CreateLocalExecutionContext,
+                    SubmitServerCommand,
+                    PresentLocalResult
+                );
+
             var input =
                 new SpaceEngineersVanillaChatInput();
 
@@ -197,22 +209,94 @@ namespace MarcoZechner.CommandApi
                 new VanillaChatCommandAdapter(
                     input,
                     output,
+                    registry.GetPrefixes,
                     SubmitCommand
                 );
 
+            TryStartRichHudChatAdapter(
+                localPeerId,
+                registry
+            );
+
             _presentationAdapter =
-                "VanillaChat";
+                "VanillaChat fallback";
 
             _initialized = true;
 
-            output.WriteLine(
-                ModDisplayName,
-                "Ready. Use /cmd help."
-            );
+            RichHudChatCommandAdapter richHudAdapter =
+                _richHudChatAdapter;
+
+            if (
+                richHudAdapter == null
+                || !richHudAdapter.IsConnected
+            )
+            {
+                output.WriteLine(
+                    ModDisplayName,
+                    "Ready. Use /cmd help."
+                );
+            }
+        }
+
+        private void TryStartRichHudChatAdapter(
+            ulong localPeerId,
+            CommandRegistry registry
+        )
+        {
+            var adapter =
+                new RichHudChatCommandAdapter(
+                    new SpaceEngineersModMessageBus(),
+                    localPeerId,
+                    SubmitCommand,
+                    registry
+                );
+
+            _richHudChatAdapter =
+                adapter;
+
+            try
+            {
+                adapter.Start();
+            }
+            catch (Exception exception)
+            {
+                _richHudChatAdapter =
+                    null;
+
+                adapter.Dispose();
+
+                MyLog.Default.WriteLineAndConsole(
+                    ModDisplayName
+                        + " RichHudChatAPI integration unavailable: "
+                        + exception
+                );
+            }
         }
 
         private void SubmitCommand(
             ulong senderId,
+            CommandInput input
+        )
+        {
+            CommandSubmissionDispatcher dispatcher =
+                _submissionDispatcher;
+
+            if (dispatcher == null)
+            {
+                throw new InvalidOperationException(
+                    "Command submission is unavailable."
+                );
+            }
+
+            dispatcher.Submit(
+                senderId,
+                Guid.NewGuid().ToString("N"),
+                input
+            );
+        }
+
+        private void SubmitServerCommand(
+            string requestId,
             CommandInput input
         )
         {
@@ -227,9 +311,22 @@ namespace MarcoZechner.CommandApi
             }
 
             coordinator.SendRequest(
-                Guid.NewGuid().ToString("N"),
+                requestId,
                 input
             );
+        }
+
+        private static CommandExecutionContext
+            CreateLocalExecutionContext(
+                ulong senderId,
+                string requestId
+            )
+        {
+            return SpaceEngineersExecutionContextProvider
+                .CreateLocal(
+                    senderId,
+                    requestId
+                );
         }
 
         private static CommandExecutionContext
@@ -245,6 +342,33 @@ namespace MarcoZechner.CommandApi
                 );
         }
 
+        private void PresentLocalResult(
+            CommandResult result
+        )
+        {
+            if (result == null)
+                return;
+
+            RichHudChatCommandAdapter richHudAdapter =
+                _richHudChatAdapter;
+
+            if (
+                richHudAdapter != null
+                && richHudAdapter.PresentResult(result)
+            )
+            {
+                return;
+            }
+
+            VanillaChatCommandAdapter vanillaAdapter =
+                _chatAdapter;
+
+            if (vanillaAdapter == null)
+                return;
+
+            vanillaAdapter.PresentResult(result);
+        }
+
         private void PresentNetworkResult(
             CommandResultMessage message
         )
@@ -252,13 +376,7 @@ namespace MarcoZechner.CommandApi
             if (message == null)
                 return;
 
-            VanillaChatCommandAdapter adapter =
-                _chatAdapter;
-
-            if (adapter == null)
-                return;
-
-            adapter.PresentResult(
+            PresentLocalResult(
                 new CommandResult(
                     message.IsSuccess,
                     message.Title,
@@ -290,12 +408,24 @@ namespace MarcoZechner.CommandApi
         private CommandStatusSnapshot
             BuildStatusSnapshot()
         {
+            RichHudChatCommandAdapter adapter =
+                _richHudChatAdapter;
+
+            bool richHudChatAvailable =
+                adapter != null
+                && adapter.IsConnected;
+
+            string presentationAdapter =
+                richHudChatAvailable
+                    ? "RichHudChatAPI"
+                    : _presentationAdapter;
+
             return new CommandStatusSnapshot(
                 CommandApiVersion,
                 ProtocolVersion,
                 _networkState,
-                false,
-                _presentationAdapter,
+                richHudChatAvailable,
+                presentationAdapter,
                 0
             );
         }
@@ -306,6 +436,12 @@ namespace MarcoZechner.CommandApi
             {
                 _apiProvider.Dispose();
                 _apiProvider = null;
+            }
+
+            if (_richHudChatAdapter != null)
+            {
+                _richHudChatAdapter.Dispose();
+                _richHudChatAdapter = null;
             }
 
             if (_chatAdapter != null)
@@ -319,6 +455,8 @@ namespace MarcoZechner.CommandApi
                 _chatInput.Dispose();
                 _chatInput = null;
             }
+
+            _submissionDispatcher = null;
 
             if (_networkCoordinator != null)
             {

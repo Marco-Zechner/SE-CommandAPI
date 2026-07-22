@@ -4,47 +4,84 @@ CommandAPI is a command framework for Space Engineers.
 
 ## Current runtime
 
-The current development slice provides:
+The current vertical slice supports:
 
-- vanilla chat input through `/cmd`;
-- structured command results;
-- case-insensitive command names and aliases;
-- permission and execution-location validation;
-- built-in `help`, `ping`, `whoami`, and `status` commands;
-- requester identity and permission data derived from authoritative server state;
-- correlated client-to-server command requests;
-- requester-only server-to-client command results;
-- listen-server and dedicated-server networking support.
+- multiple top-level command prefixes such as `/cmd`, `/ime`, or `/smoke`;
+- command names and aliases scoped within each prefix;
+- shared prefixes, with collisions enforced at command and alias level;
+- client-local, authoritative-server, either-side, and internal commands;
+- local execution for `Client` and normal `Either` submissions;
+- authoritative networking for `Server` submissions;
+- requester-only structured command results;
+- optional RichHudChatAPI input and transcript presentation for /cmd;
+- vanilla chat interception as the client fallback;
+- external command registration on clients, listen servers, and dedicated servers.
 
-All recognized commands are submitted to the authoritative server. The server
-derives requester identity and permissions from the validated transport sender,
-executes the command, and returns the structured result only to that requester.
+Unknown prefixes are left untouched as ordinary chat. A registered prefix is
+removed from interception when its final command is unregistered.
 
-RichHudChat is planned as a separate optional input and presentation provider.
-CommandAPI does not contain RichHudFramework and has no Rich HUD Master runtime
-dependency.
+## Prefix collision policy
 
-## Embedded networking layer
+Prefixes are shared namespaces rather than exclusively owned resources.
 
-CommandAPI source-copies `Mz.Networking.Core` and
-`Mz.Networking.SpaceEngineers` from SpaceEngineersLibrary. The copied revision
-and provenance are recorded under
-`Data/Scripts/CommandAPI/Libraries/Mz.Networking/SOURCE.md`.
+Two mods may both register commands under `/ime`:
 
-Command traffic uses Space Engineers secure-message channel `31280`. The value
-is the low 16 bits of FNV-1a over
-`MarcoZechner.CommandAPI.Network.v1` and is part of the CommandAPI network
-protocol assignment.
+- Mod A may register `/ime theme`.
+- Mod B may register `/ime reload`.
 
-## In-game commands
+Both registrations succeed. If both attempt `/ime theme`, or if a name collides
+with an alias already registered under `/ime`, the second registration fails.
+
+The same command name may exist under different prefixes, such as `/cmd status`
+and `/ime status`.
+
+## Built-in commands
+
+CommandAPI owns `/cmd`:
 
 - `/cmd help`
 - `/cmd ping`
 - `/cmd whoami`
 - `/cmd status`
 
-Malformed and unknown commands are suppressed from global chat and reported to
-the requester through the active local presentation adapter.
+Help lookup and usage output are scoped to the prefix used for the request.
+
+## External registration API
+
+The `RegisterCommand` metadata dictionary supports:
+
+- `OwnerId` â€” required string;
+- `Prefix` â€” optional string, defaults to `/cmd`;
+- `ExecutionLocation` â€” optional string: `Client`, `Server`, `Either`, or
+  `Internal`; defaults to `Server`;
+- `CanonicalName` â€” required string;
+- `Aliases` â€” optional string array;
+- `ShortDescription`, `HelpText`, `Usage`, and `Category` â€” optional strings;
+- `PermissionRequirement` â€” optional `Int32`.
+
+The handler request includes `Prefix`, `CommandName`, `Arguments`, requester
+identity and permission fields, `RequestId`, and `IsServer`.
+
+The API descriptor version is `1.1.0`. The registration endpoint signature is
+unchanged, and omitted new fields retain the original `/cmd` server-command
+behavior.
+
+External mods must register on every peer where they are loaded. CommandAPI
+publishes its provider locally on every peer so client command handlers and
+server command handlers are both available in the correct process.
+
+## Smoke consumers
+
+The two included smoke mods both use the shared `/smoke` prefix.
+
+Each registers a deterministic server command:
+
+- `/smoke smoke.alpha`
+- `/smoke smoke.beta`
+
+Both also attempt the client-local `/smoke smoke` command. The first loaded
+consumer owns that command name on the current peer; the other keeps its
+qualified server command.
 
 ## Build and test
 
@@ -52,35 +89,6 @@ From the mod root:
 
 `dotnet test CommandAPI.slnx --nologo`
 
-runs the xUnit test projects.
-
 `dotnet build Data\CommandAPI.csproj --nologo`
 
-builds the Space Engineers mod.
-
-## External API collision smoke test
-
-Two standalone smoke consumers are included under `SmokeMods`:
-
-- `CommandApiSmokeAlpha`
-- `CommandApiSmokeBeta`
-
-Both always register deterministic qualified commands:
-
-- `/cmd smoke.alpha`
-- `/cmd smoke.beta`
-
-Both also attempt to register `/cmd smoke`. The first loaded consumer owns that
-short convenience name. The losing consumer keeps its qualified command and
-logs the collision instead of overriding the winner. When the winner unloads
-and releases the name, the other consumer may claim it on a later registration
-attempt.
-
-Run `sync smoke consumers.bat` while Space Engineers is closed to materialize
-both local mods next to CommandAPI in the Space Engineers `Mods` directory.
-Load CommandAPI and both smoke mods, then run:
-
-- `/cmd smoke`
-- `/cmd smoke.alpha`
-- `/cmd smoke.beta`
-- `/cmd help`
+The smoke projects can be built independently from `SmokeMods`.

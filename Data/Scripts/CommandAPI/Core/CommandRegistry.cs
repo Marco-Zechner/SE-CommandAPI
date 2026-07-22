@@ -7,9 +7,14 @@ namespace MarcoZechner.CommandApi.Core
     {
         private readonly Dictionary<
             string,
-            CommandDefinition
-        > _definitionsByName =
-            new Dictionary<string, CommandDefinition>();
+            Dictionary<string, CommandDefinition>
+        > _definitionsByPrefix =
+            new Dictionary<
+                string,
+                Dictionary<string, CommandDefinition>
+            >(
+                StringComparer.Ordinal
+            );
 
         private readonly List<
             CommandDefinition
@@ -19,6 +24,24 @@ namespace MarcoZechner.CommandApi.Core
         public int Count
         {
             get { return _definitions.Count; }
+        }
+
+        public string[] GetPrefixes()
+        {
+            var prefixes =
+                new string[_definitionsByPrefix.Count];
+
+            _definitionsByPrefix.Keys.CopyTo(
+                prefixes,
+                0
+            );
+
+            Array.Sort(
+                prefixes,
+                StringComparer.Ordinal
+            );
+
+            return prefixes;
         }
 
         public CommandDefinition[] GetDefinitions()
@@ -38,7 +61,55 @@ namespace MarcoZechner.CommandApi.Core
             return copy;
         }
 
+        public CommandDefinition[] GetDefinitions(
+            string prefix
+        )
+        {
+            string normalizedPrefix =
+                CommandInput.NormalizePrefix(prefix);
+
+            Dictionary<string, CommandDefinition>
+                definitionsByName;
+
+            if (
+                !_definitionsByPrefix.TryGetValue(
+                    normalizedPrefix,
+                    out definitionsByName
+                )
+            )
+            {
+                return new CommandDefinition[0];
+            }
+
+            var definitions =
+                new List<CommandDefinition>();
+
+            foreach (
+                CommandDefinition definition
+                in definitionsByName.Values
+            )
+            {
+                if (!definitions.Contains(definition))
+                    definitions.Add(definition);
+            }
+
+            return definitions.ToArray();
+        }
+
         public bool TryRegister(
+            CommandDefinition definition,
+            out string errorMessage
+        )
+        {
+            return TryRegister(
+                CommandInputParser.Prefix,
+                definition,
+                out errorMessage
+            );
+        }
+
+        public bool TryRegister(
+            string prefix,
             CommandDefinition definition,
             out string errorMessage
         )
@@ -46,6 +117,7 @@ namespace MarcoZechner.CommandApi.Core
             Action unregister;
 
             return TryRegister(
+                prefix,
                 definition,
                 out unregister,
                 out errorMessage
@@ -58,8 +130,46 @@ namespace MarcoZechner.CommandApi.Core
             out string errorMessage
         )
         {
+            return TryRegister(
+                CommandInputParser.Prefix,
+                definition,
+                out unregister,
+                out errorMessage
+            );
+        }
+
+        public bool TryRegister(
+            string prefix,
+            CommandDefinition definition,
+            out Action unregister,
+            out string errorMessage
+        )
+        {
             if (definition == null)
                 throw new ArgumentNullException(nameof(definition));
+
+            string normalizedPrefix =
+                CommandInput.NormalizePrefix(prefix);
+
+            Dictionary<string, CommandDefinition>
+                definitionsByName;
+
+            bool prefixExists =
+                _definitionsByPrefix.TryGetValue(
+                    normalizedPrefix,
+                    out definitionsByName
+                );
+
+            if (!prefixExists)
+            {
+                definitionsByName =
+                    new Dictionary<
+                        string,
+                        CommandDefinition
+                    >(
+                        StringComparer.Ordinal
+                    );
+            }
 
             var names =
                 new List<string>();
@@ -87,7 +197,7 @@ namespace MarcoZechner.CommandApi.Core
                 string name =
                     names[index];
 
-                if (_definitionsByName.ContainsKey(name))
+                if (definitionsByName.ContainsKey(name))
                 {
                     unregister = null;
 
@@ -100,13 +210,21 @@ namespace MarcoZechner.CommandApi.Core
                 }
             }
 
+            if (!prefixExists)
+            {
+                _definitionsByPrefix.Add(
+                    normalizedPrefix,
+                    definitionsByName
+                );
+            }
+
             for (
                 int index = 0;
                 index < names.Count;
                 index++
             )
             {
-                _definitionsByName.Add(
+                definitionsByName.Add(
                     names[index],
                     definition
                 );
@@ -125,6 +243,7 @@ namespace MarcoZechner.CommandApi.Core
                     isUnregistered = true;
 
                     Unregister(
+                        normalizedPrefix,
                         definition,
                         names
                     );
@@ -135,10 +254,24 @@ namespace MarcoZechner.CommandApi.Core
         }
 
         private void Unregister(
+            string prefix,
             CommandDefinition definition,
             IList<string> names
         )
         {
+            Dictionary<string, CommandDefinition>
+                definitionsByName;
+
+            if (
+                !_definitionsByPrefix.TryGetValue(
+                    prefix,
+                    out definitionsByName
+                )
+            )
+            {
+                return;
+            }
+
             for (
                 int index = 0;
                 index < names.Count;
@@ -151,7 +284,7 @@ namespace MarcoZechner.CommandApi.Core
                 CommandDefinition registered;
 
                 if (
-                    _definitionsByName.TryGetValue(
+                    definitionsByName.TryGetValue(
                         name,
                         out registered
                     )
@@ -161,14 +294,30 @@ namespace MarcoZechner.CommandApi.Core
                     )
                 )
                 {
-                    _definitionsByName.Remove(name);
+                    definitionsByName.Remove(name);
                 }
             }
 
             _definitions.Remove(definition);
+
+            if (definitionsByName.Count == 0)
+                _definitionsByPrefix.Remove(prefix);
         }
 
         public bool TryResolve(
+            string name,
+            out CommandDefinition definition
+        )
+        {
+            return TryResolve(
+                CommandInputParser.Prefix,
+                name,
+                out definition
+            );
+        }
+
+        public bool TryResolve(
+            string prefix,
             string name,
             out CommandDefinition definition
         )
@@ -178,10 +327,26 @@ namespace MarcoZechner.CommandApi.Core
             if (string.IsNullOrWhiteSpace(name))
                 return false;
 
+            string normalizedPrefix =
+                CommandInput.NormalizePrefix(prefix);
+
+            Dictionary<string, CommandDefinition>
+                definitionsByName;
+
+            if (
+                !_definitionsByPrefix.TryGetValue(
+                    normalizedPrefix,
+                    out definitionsByName
+                )
+            )
+            {
+                return false;
+            }
+
             string normalizedName =
                 CommandDefinition.NormalizeName(name);
 
-            return _definitionsByName.TryGetValue(
+            return definitionsByName.TryGetValue(
                 normalizedName,
                 out definition
             );

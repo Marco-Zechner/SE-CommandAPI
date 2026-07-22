@@ -1,5 +1,4 @@
 using MarcoZechner.CommandApi.Smoke;
-using Sandbox.ModAPI;
 using VRage.Game.Components;
 
 namespace MarcoZechner.CommandApi.Smoke.Alpha
@@ -12,14 +11,6 @@ namespace MarcoZechner.CommandApi.Smoke.Alpha
 
         public override void BeforeStart()
         {
-            if (
-                MyAPIGateway.Multiplayer == null
-                || !MyAPIGateway.Multiplayer.IsServer
-            )
-            {
-                return;
-            }
-
             _consumer =
                 new CommandApiSmokeConsumer(
                     "MarcoZechner.CommandApiSmoke.Alpha",
