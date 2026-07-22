@@ -29,6 +29,7 @@
       Link="Core\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile
       Include="..\..\Data\Scripts\CommandAPI\Chat\**\*.cs"
+      Exclude="..\..\Data\Scripts\CommandAPI\Chat\RichHudChatCommandAdapter.cs"
       Link="Chat\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 

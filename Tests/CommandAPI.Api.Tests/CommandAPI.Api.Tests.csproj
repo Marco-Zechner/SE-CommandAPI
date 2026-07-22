@@ -36,4 +36,13 @@
       Link="Libraries\Mz.ApiProtocol\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile
+      Include="..\..\Data\Scripts\CommandAPI\Chat\RichHudChatCommandAdapter.cs"
+      Link="Chat\RichHudChatCommandAdapter.cs" />
+    <Compile
+      Include="..\..\Data\Scripts\CommandAPI\Chat\VanillaChatCommandSubmitter.cs"
+      Link="Chat\VanillaChatCommandSubmitter.cs" />
+  </ItemGroup>
+
 </Project>
