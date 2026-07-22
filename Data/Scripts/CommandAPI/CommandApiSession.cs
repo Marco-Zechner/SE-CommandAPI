@@ -47,6 +47,9 @@ namespace MarcoZechner.CommandApi
         private VanillaChatCommandAdapter
             _chatAdapter;
 
+        private RichHudChatCommandAdapter
+            _richHudChatAdapter;
+
         private string _networkState =
             "Not initialized";
 
@@ -210,15 +213,61 @@ namespace MarcoZechner.CommandApi
                     SubmitCommand
                 );
 
+            TryStartRichHudChatAdapter(
+                localPeerId
+            );
+
             _presentationAdapter =
-                "VanillaChat";
+                "VanillaChat fallback";
 
             _initialized = true;
 
-            output.WriteLine(
-                ModDisplayName,
-                "Ready. Use /cmd help."
-            );
+            RichHudChatCommandAdapter richHudAdapter =
+                _richHudChatAdapter;
+
+            if (
+                richHudAdapter == null
+                || !richHudAdapter.IsConnected
+            )
+            {
+                output.WriteLine(
+                    ModDisplayName,
+                    "Ready. Use /cmd help."
+                );
+            }
+        }
+
+        private void TryStartRichHudChatAdapter(
+            ulong localPeerId
+        )
+        {
+            var adapter =
+                new RichHudChatCommandAdapter(
+                    new SpaceEngineersModMessageBus(),
+                    localPeerId,
+                    SubmitCommand
+                );
+
+            _richHudChatAdapter =
+                adapter;
+
+            try
+            {
+                adapter.Start();
+            }
+            catch (Exception exception)
+            {
+                _richHudChatAdapter =
+                    null;
+
+                adapter.Dispose();
+
+                MyLog.Default.WriteLineAndConsole(
+                    ModDisplayName
+                        + " RichHudChatAPI integration unavailable: "
+                        + exception
+                );
+            }
         }
 
         private void SubmitCommand(
@@ -297,13 +346,24 @@ namespace MarcoZechner.CommandApi
             if (result == null)
                 return;
 
-            VanillaChatCommandAdapter adapter =
+            RichHudChatCommandAdapter richHudAdapter =
+                _richHudChatAdapter;
+
+            if (
+                richHudAdapter != null
+                && richHudAdapter.PresentResult(result)
+            )
+            {
+                return;
+            }
+
+            VanillaChatCommandAdapter vanillaAdapter =
                 _chatAdapter;
 
-            if (adapter == null)
+            if (vanillaAdapter == null)
                 return;
 
-            adapter.PresentResult(result);
+            vanillaAdapter.PresentResult(result);
         }
 
         private void PresentNetworkResult(
@@ -345,12 +405,24 @@ namespace MarcoZechner.CommandApi
         private CommandStatusSnapshot
             BuildStatusSnapshot()
         {
+            RichHudChatCommandAdapter adapter =
+                _richHudChatAdapter;
+
+            bool richHudChatAvailable =
+                adapter != null
+                && adapter.IsConnected;
+
+            string presentationAdapter =
+                richHudChatAvailable
+                    ? "RichHudChatAPI"
+                    : _presentationAdapter;
+
             return new CommandStatusSnapshot(
                 CommandApiVersion,
                 ProtocolVersion,
                 _networkState,
-                false,
-                _presentationAdapter,
+                richHudChatAvailable,
+                presentationAdapter,
                 0
             );
         }
@@ -361,6 +433,12 @@ namespace MarcoZechner.CommandApi
             {
                 _apiProvider.Dispose();
                 _apiProvider = null;
+            }
+
+            if (_richHudChatAdapter != null)
+            {
+                _richHudChatAdapter.Dispose();
+                _richHudChatAdapter = null;
             }
 
             if (_chatAdapter != null)

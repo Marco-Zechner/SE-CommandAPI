@@ -13,7 +13,8 @@ The current vertical slice supports:
 - local execution for `Client` and normal `Either` submissions;
 - authoritative networking for `Server` submissions;
 - requester-only structured command results;
-- vanilla chat interception for prefixes registered on the local peer;
+- optional RichHudChatAPI input and transcript presentation for /cmd;
+- vanilla chat interception as the client fallback;
 - external command registration on clients, listen servers, and dedicated servers.
 
 Unknown prefixes are left untouched as ordinary chat. A registered prefix is
