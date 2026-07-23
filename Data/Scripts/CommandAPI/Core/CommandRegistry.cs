@@ -21,6 +21,8 @@ namespace MarcoZechner.CommandApi.Core
         > _definitions =
             new List<CommandDefinition>();
 
+        public event Action Changed;
+
         public int Count
         {
             get { return _definitions.Count; }
@@ -249,6 +251,8 @@ namespace MarcoZechner.CommandApi.Core
                     );
                 };
 
+            NotifyChanged();
+
             errorMessage = null;
             return true;
         }
@@ -302,6 +306,35 @@ namespace MarcoZechner.CommandApi.Core
 
             if (definitionsByName.Count == 0)
                 _definitionsByPrefix.Remove(prefix);
+
+            NotifyChanged();
+        }
+
+        private void NotifyChanged()
+        {
+            Action changed =
+                Changed;
+
+            if (changed == null)
+                return;
+
+            Delegate[] handlers =
+                changed.GetInvocationList();
+
+            for (
+                int index = 0;
+                index < handlers.Length;
+                index++
+            )
+            {
+                try
+                {
+                    ((Action)handlers[index])();
+                }
+                catch (Exception)
+                {
+                }
+            }
         }
 
         public bool TryResolve(

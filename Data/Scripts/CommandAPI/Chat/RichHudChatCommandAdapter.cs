@@ -63,6 +63,33 @@ namespace MarcoZechner.CommandApi.Chat
         private Action _unregisterRoute;
         private Action _unregisterRouteInteraction;
 
+        private Func<
+            IDictionary<string, object>,
+            Action<string>,
+            Action<string>,
+            Action
+        > _registerRoute;
+
+        private Func<
+            IDictionary<string, object>,
+            Action<string>,
+            Action
+        > _registerRouteInteraction;
+
+        private readonly Dictionary<
+            string,
+            ExternalRouteRegistration
+        > _externalRoutes =
+            new Dictionary<
+                string,
+                ExternalRouteRegistration
+            >(
+                StringComparer.Ordinal
+            );
+
+        private int _nextExternalRouteId =
+            1;
+
         private Action<
             IDictionary<string, object>
         > _appendTranscript;
@@ -86,6 +113,12 @@ namespace MarcoZechner.CommandApi.Chat
             new CommandDefinition[0];
 
         private int _selectedSuggestionIndex;
+
+        private string _draftPrefix =
+            CommandInputParser.Prefix;
+
+        private string _draftRouteId =
+            RouteId;
 
         private int _draftPrefixLength;
         private int _draftCommandStart;
@@ -145,6 +178,9 @@ namespace MarcoZechner.CommandApi.Chat
             _localPeerId = localPeerId;
             _submitter = submitter;
             _registry = registry;
+
+            if (_registry != null)
+                _registry.Changed += OnRegistryChanged;
         }
 
         public void Start()
@@ -289,6 +325,10 @@ namespace MarcoZechner.CommandApi.Chat
                 return;
 
             _disposed = true;
+
+            if (_registry != null)
+                _registry.Changed -= OnRegistryChanged;
+
             ReleaseConnection();
 
             ApiDiscoveryConsumer consumer =
@@ -598,6 +638,14 @@ namespace MarcoZechner.CommandApi.Chat
             _unregisterRouteInteraction =
                 unregisterRouteInteraction;
 
+            _registerRoute =
+                registerRoute;
+
+            _registerRouteInteraction =
+                supportsCompanion
+                    ? registerRouteInteraction
+                    : null;
+
             _appendTranscript =
                 appendTranscript;
 
@@ -616,16 +664,266 @@ namespace MarcoZechner.CommandApi.Chat
                     ? setInput
                     : null;
 
-
             _supportsStyledCompanion =
                 supportsStyledCompanion;
+
+            SynchronizeExternalRoutes();
 
             WriteLine(
                 "Ready. Use /cmd help."
             );
         }
 
+        private void OnRegistryChanged()
+        {
+            if (_disposed || !IsConnected)
+                return;
+
+            try
+            {
+                SynchronizeExternalRoutes();
+                LastError = null;
+            }
+            catch (Exception exception)
+            {
+                LastError = exception.Message;
+            }
+        }
+
+        private void SynchronizeExternalRoutes()
+        {
+            if (
+                _registry == null
+                || _registerRoute == null
+                || _registrationId == null
+            )
+            {
+                return;
+            }
+
+            string[] prefixes =
+                _registry.GetPrefixes();
+
+            var desiredPrefixes =
+                new Dictionary<string, bool>(
+                    StringComparer.Ordinal
+                );
+
+            for (
+                int index = 0;
+                index < prefixes.Length;
+                index++
+            )
+            {
+                string prefix =
+                    prefixes[index];
+
+                if (
+                    string.Equals(
+                        prefix,
+                        CommandInputParser.Prefix,
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    continue;
+                }
+
+                desiredPrefixes[prefix] =
+                    true;
+            }
+
+            string[] registeredPrefixes =
+                new string[
+                    _externalRoutes.Count
+                ];
+
+            _externalRoutes.Keys.CopyTo(
+                registeredPrefixes,
+                0
+            );
+
+            for (
+                int index = 0;
+                index < registeredPrefixes.Length;
+                index++
+            )
+            {
+                string prefix =
+                    registeredPrefixes[index];
+
+                if (desiredPrefixes.ContainsKey(prefix))
+                    continue;
+
+                ExternalRouteRegistration registration =
+                    _externalRoutes[prefix];
+
+                _externalRoutes.Remove(prefix);
+
+                TryClearCompanion(
+                    _clearCompanion,
+                    _registrationId,
+                    registration.RouteId
+                );
+
+                registration.Release();
+            }
+
+            foreach (
+                string prefix
+                in desiredPrefixes.Keys
+            )
+            {
+                if (_externalRoutes.ContainsKey(prefix))
+                    continue;
+
+                string routeId =
+                    RouteId
+                    + "-external-"
+                    + _nextExternalRouteId;
+
+                _nextExternalRouteId++;
+
+                string capturedPrefix =
+                    prefix;
+
+                string capturedRouteId =
+                    routeId;
+
+                Action<string> inputChanged =
+                    null;
+
+                if (_setCompanion != null)
+                {
+                    inputChanged =
+                        delegate(string text)
+                        {
+                            OnInputChanged(
+                                capturedPrefix,
+                                capturedRouteId,
+                                text
+                            );
+                        };
+                }
+
+                Action unregisterRoute =
+                    _registerRoute(
+                        new Dictionary<string, object>(
+                            StringComparer.Ordinal
+                        )
+                        {
+                            {
+                                "RegistrationId",
+                                _registrationId
+                            },
+                            {
+                                "RouteId",
+                                capturedRouteId
+                            },
+                            {
+                                "Prefix",
+                                capturedPrefix
+                            },
+                            {
+                                "IsDefault",
+                                false
+                            }
+                        },
+                        delegate(string text)
+                        {
+                            OnSubmittedInput(
+                                capturedPrefix,
+                                text
+                            );
+                        },
+                        inputChanged
+                    );
+
+                if (unregisterRoute == null)
+                {
+                    throw new InvalidOperationException(
+                        "RichHudChatAPI returned no route registration "
+                            + "for prefix "
+                            + capturedPrefix
+                            + "."
+                    );
+                }
+
+                Action unregisterInteraction =
+                    null;
+
+                try
+                {
+                    if (_registerRouteInteraction != null)
+                    {
+                        unregisterInteraction =
+                            _registerRouteInteraction(
+                                new Dictionary<string, object>(
+                                    StringComparer.Ordinal
+                                )
+                                {
+                                    {
+                                        "RegistrationId",
+                                        _registrationId
+                                    },
+                                    {
+                                        "RouteId",
+                                        capturedRouteId
+                                    }
+                                },
+                                delegate(string interaction)
+                                {
+                                    OnInteraction(
+                                        capturedPrefix,
+                                        capturedRouteId,
+                                        interaction
+                                    );
+                                }
+                            );
+
+                        if (unregisterInteraction == null)
+                        {
+                            throw new InvalidOperationException(
+                                "RichHudChatAPI returned no interaction "
+                                    + "registration for prefix "
+                                    + capturedPrefix
+                                    + "."
+                            );
+                        }
+                    }
+
+                    _externalRoutes.Add(
+                        capturedPrefix,
+                        new ExternalRouteRegistration(
+                            capturedRouteId,
+                            unregisterRoute,
+                            unregisterInteraction
+                        )
+                    );
+                }
+                catch
+                {
+                    TryInvoke(unregisterInteraction);
+                    TryInvoke(unregisterRoute);
+                    throw;
+                }
+            }
+        }
+
         private void OnInputChanged(
+            string text
+        )
+        {
+            OnInputChanged(
+                CommandInputParser.Prefix,
+                RouteId,
+                text
+            );
+        }
+
+        private void OnInputChanged(
+            string prefix,
+            string routeId,
             string text
         )
         {
@@ -650,13 +948,17 @@ namespace MarcoZechner.CommandApi.Chat
             if (
                 !TryReadCommandDraft(
                     input,
+                    prefix,
                     out prefixLength,
                     out commandStart,
                     out commandLength
                 )
             )
             {
-                ClearSuggestions();
+                ClearSuggestions(
+                    routeId
+                );
+
                 return;
             }
 
@@ -670,7 +972,7 @@ namespace MarcoZechner.CommandApi.Chat
 
             CommandDefinition[] definitions =
                 _registry.GetDefinitions(
-                    CommandInputParser.Prefix
+                    prefix
                 );
 
             var matches =
@@ -714,11 +1016,23 @@ namespace MarcoZechner.CommandApi.Chat
                 }
             );
 
-            _draftPrefixLength = prefixLength;
-            _draftCommandStart = commandStart;
-            _draftCommandLength = commandLength;
+            _draftPrefix =
+                prefix;
 
-            _suggestions = suggestions;
+            _draftRouteId =
+                routeId;
+
+            _draftPrefixLength =
+                prefixLength;
+
+            _draftCommandStart =
+                commandStart;
+
+            _draftCommandLength =
+                commandLength;
+
+            _suggestions =
+                suggestions;
 
             if (suggestions.Length > 0)
             {
@@ -742,7 +1056,10 @@ namespace MarcoZechner.CommandApi.Chat
                 && !_supportsStyledCompanion
             )
             {
-                ClearSuggestions();
+                ClearSuggestions(
+                    routeId
+                );
+
                 return;
             }
 
@@ -751,6 +1068,7 @@ namespace MarcoZechner.CommandApi.Chat
 
         private static bool TryReadCommandDraft(
             string input,
+            string prefix,
             out int prefixLength,
             out int commandStart,
             out int commandLength
@@ -760,11 +1078,13 @@ namespace MarcoZechner.CommandApi.Chat
             commandStart = 0;
             commandLength = 0;
 
-            if (string.IsNullOrEmpty(input))
+            if (
+                string.IsNullOrEmpty(input)
+                || string.IsNullOrWhiteSpace(prefix)
+            )
+            {
                 return false;
-
-            string prefix =
-                CommandInputParser.Prefix;
+            }
 
             if (
                 input.Length <= prefix.Length
@@ -882,10 +1202,33 @@ namespace MarcoZechner.CommandApi.Chat
             string interaction
         )
         {
+            OnInteraction(
+                CommandInputParser.Prefix,
+                RouteId,
+                interaction
+            );
+        }
+
+        private void OnInteraction(
+            string prefix,
+            string routeId,
+            string interaction
+        )
+        {
             if (
                 _disposed
                 || !IsConnected
                 || _suggestions.Length == 0
+                || !string.Equals(
+                    prefix,
+                    _draftPrefix,
+                    StringComparison.Ordinal
+                )
+                || !string.Equals(
+                    routeId,
+                    _draftRouteId,
+                    StringComparison.Ordinal
+                )
             )
             {
                 return;
@@ -947,6 +1290,12 @@ namespace MarcoZechner.CommandApi.Chat
             if (
                 _setCompanion == null
                 || _registrationId == null
+                || string.IsNullOrWhiteSpace(
+                    _draftPrefix
+                )
+                || string.IsNullOrWhiteSpace(
+                    _draftRouteId
+                )
             )
             {
                 return;
@@ -973,7 +1322,7 @@ namespace MarcoZechner.CommandApi.Chat
                     _suggestions[index];
 
                 string completionText =
-                    CommandInputParser.Prefix
+                    _draftPrefix
                         + " "
                         + definition.CanonicalName;
 
@@ -1006,7 +1355,7 @@ namespace MarcoZechner.CommandApi.Chat
                         {
                             CreateSpan(
                                 0,
-                                CommandInputParser.Prefix.Length,
+                                _draftPrefix.Length,
                                 "Valid"
                             )
                         }
@@ -1027,7 +1376,7 @@ namespace MarcoZechner.CommandApi.Chat
                     },
                     {
                         "RouteId",
-                        RouteId
+                        _draftRouteId
                     },
                     {
                         "Items",
@@ -1043,7 +1392,7 @@ namespace MarcoZechner.CommandApi.Chat
             {
                 request.Add(
                     "HeaderText",
-                    CommandInputParser.Prefix
+                    _draftPrefix
                         + " <command>"
                 );
 
@@ -1053,11 +1402,11 @@ namespace MarcoZechner.CommandApi.Chat
                     {
                         CreateSpan(
                             0,
-                            CommandInputParser.Prefix.Length,
+                            _draftPrefix.Length,
                             "Valid"
                         ),
                         CreateSpan(
-                            CommandInputParser.Prefix.Length,
+                            _draftPrefix.Length,
                             10,
                             "Muted"
                         )
@@ -1068,7 +1417,15 @@ namespace MarcoZechner.CommandApi.Chat
                     "Footer",
                     _suggestions.Length > 0
                         ? "Up/Down selects | Tab completes"
-                        : "Type /cmd help for command help."
+                        : string.Equals(
+                            _draftPrefix,
+                            CommandInputParser.Prefix,
+                            StringComparison.Ordinal
+                        )
+                            ? "Type /cmd help for command help."
+                            : "No matching commands under "
+                                + _draftPrefix
+                                + "."
                 );
 
                 request.Add(
@@ -1158,6 +1515,12 @@ namespace MarcoZechner.CommandApi.Chat
             if (
                 _setInput == null
                 || _registrationId == null
+                || string.IsNullOrWhiteSpace(
+                    _draftPrefix
+                )
+                || string.IsNullOrWhiteSpace(
+                    _draftRouteId
+                )
                 || _selectedSuggestionIndex < 0
                 || _selectedSuggestionIndex >= _suggestions.Length
             )
@@ -1182,11 +1545,11 @@ namespace MarcoZechner.CommandApi.Chat
                     },
                     {
                         "RouteId",
-                        RouteId
+                        _draftRouteId
                     },
                     {
                         "Input",
-                        CommandInputParser.Prefix
+                        _draftPrefix
                             + " "
                             + definition.CanonicalName
                     }
@@ -1195,6 +1558,15 @@ namespace MarcoZechner.CommandApi.Chat
         }
 
         private void ClearSuggestions()
+        {
+            ClearSuggestions(
+                _draftRouteId
+            );
+        }
+
+        private void ClearSuggestions(
+            string routeId
+        )
         {
             _suggestions =
                 new CommandDefinition[0];
@@ -1207,11 +1579,23 @@ namespace MarcoZechner.CommandApi.Chat
 
             TryClearCompanion(
                 _clearCompanion,
-                _registrationId
+                _registrationId,
+                routeId
             );
         }
 
         private void OnSubmittedInput(
+            string text
+        )
+        {
+            OnSubmittedInput(
+                CommandInputParser.Prefix,
+                text
+            );
+        }
+
+        private void OnSubmittedInput(
+            string prefix,
             string text
         )
         {
@@ -1228,7 +1612,7 @@ namespace MarcoZechner.CommandApi.Chat
             CommandParseResult parseResult =
                 CommandInputParser.Parse(
                     text,
-                    CommandInputParser.Prefix
+                    prefix
                 );
 
             if (
@@ -1238,7 +1622,9 @@ namespace MarcoZechner.CommandApi.Chat
             {
                 WriteLine(
                     "Command error: "
-                        + "The submitted input did not match /cmd."
+                        + "The submitted input did not match "
+                        + prefix
+                        + "."
                 );
 
                 return;
@@ -1325,6 +1711,16 @@ namespace MarcoZechner.CommandApi.Chat
             Action unregisterParticipant =
                 _unregisterParticipant;
 
+            ExternalRouteRegistration[] externalRoutes =
+                new ExternalRouteRegistration[
+                    _externalRoutes.Count
+                ];
+
+            _externalRoutes.Values.CopyTo(
+                externalRoutes,
+                0
+            );
+
             Func<
                 IDictionary<string, object>,
                 bool
@@ -1336,7 +1732,8 @@ namespace MarcoZechner.CommandApi.Chat
 
             TryClearCompanion(
                 clearCompanion,
-                registrationId
+                registrationId,
+                _draftRouteId
             );
 
             _registrationId = null;
@@ -1344,18 +1741,39 @@ namespace MarcoZechner.CommandApi.Chat
             _setCompanion = null;
             _clearCompanion = null;
             _setInput = null;
+            _registerRoute = null;
+            _registerRouteInteraction = null;
             _unregisterRouteInteraction = null;
             _unregisterRoute = null;
             _unregisterParticipant = null;
+
+            _externalRoutes.Clear();
+
             _suggestions =
                 new CommandDefinition[0];
 
             _selectedSuggestionIndex = -1;
+
+            _draftPrefix =
+                CommandInputParser.Prefix;
+
+            _draftRouteId =
+                RouteId;
+
             _draftPrefixLength = 0;
             _draftCommandStart = 0;
             _draftCommandLength = 0;
             _draftErrorText = null;
             _supportsStyledCompanion = false;
+
+            for (
+                int index = 0;
+                index < externalRoutes.Length;
+                index++
+            )
+            {
+                externalRoutes[index].Release();
+            }
 
             TryInvoke(
                 unregisterRouteInteraction
@@ -1375,12 +1793,14 @@ namespace MarcoZechner.CommandApi.Chat
                 IDictionary<string, object>,
                 bool
             > clearCompanion,
-            string registrationId
+            string registrationId,
+            string routeId
         )
         {
             if (
                 clearCompanion == null
                 || registrationId == null
+                || string.IsNullOrWhiteSpace(routeId)
             )
             {
                 return;
@@ -1398,7 +1818,7 @@ namespace MarcoZechner.CommandApi.Chat
                     },
                     {
                         "RouteId",
-                        RouteId
+                        routeId
                     }
                 }
             );
@@ -1507,6 +1927,58 @@ namespace MarcoZechner.CommandApi.Chat
             }
             catch (Exception)
             {
+            }
+        }
+
+        private sealed class ExternalRouteRegistration
+        {
+            public string RouteId
+            {
+                get;
+                private set;
+            }
+
+            private Action UnregisterRoute
+            {
+                get;
+                set;
+            }
+
+            private Action UnregisterInteraction
+            {
+                get;
+                set;
+            }
+
+            public ExternalRouteRegistration(
+                string routeId,
+                Action unregisterRoute,
+                Action unregisterInteraction
+            )
+            {
+                RouteId =
+                    routeId;
+
+                UnregisterRoute =
+                    unregisterRoute;
+
+                UnregisterInteraction =
+                    unregisterInteraction;
+            }
+
+            public void Release()
+            {
+                Action unregisterInteraction =
+                    UnregisterInteraction;
+
+                Action unregisterRoute =
+                    UnregisterRoute;
+
+                UnregisterInteraction = null;
+                UnregisterRoute = null;
+
+                TryInvoke(unregisterInteraction);
+                TryInvoke(unregisterRoute);
             }
         }
 
