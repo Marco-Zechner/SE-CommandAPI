@@ -196,6 +196,12 @@ namespace MarcoZechner.CommandApi.Tests
                 routeMetadata["IsDefault"]
             );
 
+            Assert.False(
+                routeMetadata.ContainsKey(
+                    "ActivationPrefix"
+                )
+            );
+
             Assert.Single(transcript);
             Assert.Equal(
                 "Ready. Use /cmd help.",
@@ -341,6 +347,9 @@ namespace MarcoZechner.CommandApi.Tests
             Action<string> interaction =
                 null;
 
+            IDictionary<string, object> routeMetadata =
+                null;
+
             IDictionary<string, object> companionRequest =
                 null;
 
@@ -390,6 +399,7 @@ namespace MarcoZechner.CommandApi.Tests
                     Action<string> changed
                 )
                 {
+                    routeMetadata = metadata;
                     inputChanged = changed;
 
                     return delegate
@@ -513,7 +523,7 @@ namespace MarcoZechner.CommandApi.Tests
                         "MarcoZechner.RichHudChatAPI",
                         new SemanticVersion(
                             1,
-                            1,
+                            3,
                             0
                         )
                     ),
@@ -537,11 +547,22 @@ namespace MarcoZechner.CommandApi.Tests
             adapter.Start();
 
             Assert.True(adapter.IsConnected);
+            Assert.NotNull(routeMetadata);
             Assert.NotNull(inputChanged);
             Assert.NotNull(interaction);
 
+            Assert.Equal(
+                "/cmd",
+                routeMetadata["Prefix"]
+            );
+
+            Assert.Equal(
+                "/",
+                routeMetadata["ActivationPrefix"]
+            );
+
             inputChanged(
-                "/cmd"
+                "/"
             );
 
             Assert.NotNull(companionRequest);
@@ -557,33 +578,70 @@ namespace MarcoZechner.CommandApi.Tests
                 0,
                 companionRequest["SelectedIndex"]
             );
+            Assert.Equal(
+                "/cmd <command>",
+                companionRequest["HeaderText"]
+            );
+            Assert.Equal(
+                "Up/Down selects | Tab completes",
+                companionRequest["Footer"]
+            );
+            Assert.False(
+                companionRequest.ContainsKey(
+                    "ErrorText"
+                )
+            );
 
-            var encodedItems =
-                Assert.IsType<object[]>(
-                    companionRequest["Items"]
+            IDictionary<string, object>[] headerSpans =
+                ReadDictionaries(
+                    companionRequest,
+                    "HeaderSpans"
+                );
+
+            AssertSpan(
+                headerSpans[0],
+                0,
+                4,
+                "Valid"
+            );
+
+            AssertSpan(
+                headerSpans[1],
+                4,
+                10,
+                "Muted"
+            );
+
+            IDictionary<string, object>[] inputSpans =
+                ReadDictionaries(
+                    companionRequest,
+                    "InputSpans"
+                );
+
+            Assert.Single(inputSpans);
+
+            AssertSpan(
+                inputSpans[0],
+                0,
+                1,
+                "Valid"
+            );
+
+            IDictionary<string, object>[] items =
+                ReadDictionaries(
+                    companionRequest,
+                    "Items"
                 );
 
             Assert.Equal(
                 2,
-                encodedItems.Length
+                items.Length
             );
 
-            var items =
-                new IDictionary<string, object>[]
-                {
-                    Assert.IsAssignableFrom<
-                        IDictionary<string, object>
-                    >(
-                        encodedItems[0]
-                    ),
-                    Assert.IsAssignableFrom<
-                        IDictionary<string, object>
-                    >(
-                        encodedItems[1]
-                    )
-                };
-
-            Assert.Equal("help", items[0]["PrimaryText"]);
+            Assert.Equal(
+                "/cmd help",
+                items[0]["PrimaryText"]
+            );
             Assert.Equal(
                 "Lists available commands.",
                 items[0]["SecondaryText"]
@@ -593,7 +651,25 @@ namespace MarcoZechner.CommandApi.Tests
                 items[0]["CompletionText"]
             );
 
-            Assert.Equal("ping", items[1]["PrimaryText"]);
+            IDictionary<string, object>[] helpSpans =
+                ReadDictionaries(
+                    items[0],
+                    "PrimarySpans"
+                );
+
+            Assert.Single(helpSpans);
+
+            AssertSpan(
+                helpSpans[0],
+                0,
+                4,
+                "Valid"
+            );
+
+            Assert.Equal(
+                "/cmd ping",
+                items[1]["PrimaryText"]
+            );
             Assert.Equal(
                 "Tests command execution.",
                 items[1]["SecondaryText"]
@@ -610,6 +686,62 @@ namespace MarcoZechner.CommandApi.Tests
             Assert.Equal(
                 1,
                 companionRequest["SelectedIndex"]
+            );
+
+            interaction(
+                "Previous"
+            );
+
+            Assert.Equal(
+                0,
+                companionRequest["SelectedIndex"]
+            );
+
+            inputChanged(
+                "/cmd p"
+            );
+
+            Assert.Equal(
+                0,
+                companionRequest["SelectedIndex"]
+            );
+
+            items =
+                ReadDictionaries(
+                    companionRequest,
+                    "Items"
+                );
+
+            Assert.Single(items);
+
+            Assert.Equal(
+                "/cmd ping",
+                items[0]["PrimaryText"]
+            );
+
+            inputSpans =
+                ReadDictionaries(
+                    companionRequest,
+                    "InputSpans"
+                );
+
+            Assert.Equal(
+                2,
+                inputSpans.Length
+            );
+
+            AssertSpan(
+                inputSpans[0],
+                0,
+                4,
+                "Valid"
+            );
+
+            AssertSpan(
+                inputSpans[1],
+                5,
+                1,
+                "Valid"
             );
 
             interaction(
@@ -630,6 +762,57 @@ namespace MarcoZechner.CommandApi.Tests
                 inputRequest["Input"]
             );
 
+            inputChanged(
+                "/cmd missing"
+            );
+
+            Assert.Equal(
+                -1,
+                companionRequest["SelectedIndex"]
+            );
+
+            Assert.Empty(
+                ReadDictionaries(
+                    companionRequest,
+                    "Items"
+                )
+            );
+
+            Assert.Equal(
+                "Unknown command 'missing'.",
+                companionRequest["ErrorText"]
+            );
+
+            Assert.Equal(
+                "Type /cmd help for command help.",
+                companionRequest["Footer"]
+            );
+
+            inputSpans =
+                ReadDictionaries(
+                    companionRequest,
+                    "InputSpans"
+                );
+
+            Assert.Equal(
+                2,
+                inputSpans.Length
+            );
+
+            AssertSpan(
+                inputSpans[0],
+                0,
+                4,
+                "Valid"
+            );
+
+            AssertSpan(
+                inputSpans[1],
+                5,
+                7,
+                "Error"
+            );
+
             provider.Stop();
 
             Assert.Equal(1, interactionUnregisterCount);
@@ -639,6 +822,62 @@ namespace MarcoZechner.CommandApi.Tests
 
             adapter.Dispose();
             provider.Dispose();
+        }
+
+        private static IDictionary<string, object>[]
+            ReadDictionaries(
+                IDictionary<string, object> values,
+                string key
+            )
+        {
+            object[] encoded =
+                Assert.IsType<object[]>(
+                    values[key]
+                );
+
+            var dictionaries =
+                new IDictionary<string, object>[
+                    encoded.Length
+                ];
+
+            for (
+                int index = 0;
+                index < encoded.Length;
+                index++
+            )
+            {
+                dictionaries[index] =
+                    Assert.IsAssignableFrom<
+                        IDictionary<string, object>
+                    >(
+                        encoded[index]
+                    );
+            }
+
+            return dictionaries;
+        }
+
+        private static void AssertSpan(
+            IDictionary<string, object> span,
+            int start,
+            int length,
+            string style
+        )
+        {
+            Assert.Equal(
+                start,
+                (int)span["Start"]
+            );
+
+            Assert.Equal(
+                length,
+                (int)span["Length"]
+            );
+
+            Assert.Equal(
+                style,
+                (string)span["Style"]
+            );
         }
 
         private static void Register(

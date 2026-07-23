@@ -87,6 +87,14 @@ namespace MarcoZechner.CommandApi.Chat
 
         private int _selectedSuggestionIndex;
 
+        private int _draftPrefixLength;
+        private int _draftCommandStart;
+        private int _draftCommandLength;
+
+        private string _draftErrorText;
+
+        private bool _supportsStyledCompanion;
+
         private string _registrationId;
         private bool _disposed;
 
@@ -431,6 +439,24 @@ namespace MarcoZechner.CommandApi.Chat
                 && hasRouteInteraction
                 && hasSetInput;
 
+            bool supportsActivationPrefix =
+                supportsCompanion
+                && connection.Descriptor.Version
+                    >= new SemanticVersion(
+                        1,
+                        2,
+                        0
+                    );
+
+            bool supportsStyledCompanion =
+                supportsCompanion
+                && connection.Descriptor.Version
+                    >= new SemanticVersion(
+                        1,
+                        3,
+                        0
+                    );
+
             IDictionary<string, object> registration =
                 registerParticipant(
                     new Dictionary<string, object>(
@@ -472,29 +498,40 @@ namespace MarcoZechner.CommandApi.Chat
 
             try
             {
+                var routeMetadata =
+                    new Dictionary<string, object>(
+                        StringComparer.Ordinal
+                    )
+                    {
+                        {
+                            "RegistrationId",
+                            registrationId
+                        },
+                        {
+                            "RouteId",
+                            RouteId
+                        },
+                        {
+                            "Prefix",
+                            CommandInputParser.Prefix
+                        },
+                        {
+                            "IsDefault",
+                            false
+                        }
+                    };
+
+                if (supportsActivationPrefix)
+                {
+                    routeMetadata.Add(
+                        "ActivationPrefix",
+                        "/"
+                    );
+                }
+
                 unregisterRoute =
                     registerRoute(
-                        new Dictionary<string, object>(
-                            StringComparer.Ordinal
-                        )
-                        {
-                            {
-                                "RegistrationId",
-                                registrationId
-                            },
-                            {
-                                "RouteId",
-                                RouteId
-                            },
-                            {
-                                "Prefix",
-                                CommandInputParser.Prefix
-                            },
-                            {
-                                "IsDefault",
-                                false
-                            }
-                        },
+                        routeMetadata,
                         OnSubmittedInput,
                         inputChanged
                     );
@@ -579,6 +616,10 @@ namespace MarcoZechner.CommandApi.Chat
                     ? setInput
                     : null;
 
+
+            _supportsStyledCompanion =
+                supportsStyledCompanion;
+
             WriteLine(
                 "Ready. Use /cmd help."
             );
@@ -598,14 +639,20 @@ namespace MarcoZechner.CommandApi.Chat
                 return;
             }
 
-            string normalizedInput =
-                (text ?? string.Empty).Trim();
+            string input =
+                text
+                ?? string.Empty;
+
+            int prefixLength;
+            int commandStart;
+            int commandLength;
 
             if (
-                !string.Equals(
-                    normalizedInput,
-                    CommandInputParser.Prefix,
-                    StringComparison.OrdinalIgnoreCase
+                !TryReadCommandDraft(
+                    input,
+                    out prefixLength,
+                    out commandStart,
+                    out commandLength
                 )
             )
             {
@@ -613,10 +660,44 @@ namespace MarcoZechner.CommandApi.Chat
                 return;
             }
 
-            CommandDefinition[] suggestions =
+            string commandFragment =
+                commandLength == 0
+                    ? string.Empty
+                    : input.Substring(
+                        commandStart,
+                        commandLength
+                    );
+
+            CommandDefinition[] definitions =
                 _registry.GetDefinitions(
                     CommandInputParser.Prefix
                 );
+
+            var matches =
+                new List<CommandDefinition>();
+
+            for (
+                int index = 0;
+                index < definitions.Length;
+                index++
+            )
+            {
+                CommandDefinition definition =
+                    definitions[index];
+
+                if (
+                    MatchesCommandFragment(
+                        definition,
+                        commandFragment
+                    )
+                )
+                {
+                    matches.Add(definition);
+                }
+            }
+
+            CommandDefinition[] suggestions =
+                matches.ToArray();
 
             Array.Sort(
                 suggestions,
@@ -633,16 +714,168 @@ namespace MarcoZechner.CommandApi.Chat
                 }
             );
 
-            _suggestions = suggestions;
-            _selectedSuggestionIndex = 0;
+            _draftPrefixLength = prefixLength;
+            _draftCommandStart = commandStart;
+            _draftCommandLength = commandLength;
 
-            if (suggestions.Length == 0)
+            _suggestions = suggestions;
+
+            if (suggestions.Length > 0)
+            {
+                _selectedSuggestionIndex = 0;
+                _draftErrorText = null;
+            }
+            else
+            {
+                _selectedSuggestionIndex = -1;
+
+                _draftErrorText =
+                    commandLength > 0
+                        ? "Unknown command '"
+                            + commandFragment
+                            + "'."
+                        : null;
+            }
+
+            if (
+                suggestions.Length == 0
+                && !_supportsStyledCompanion
+            )
             {
                 ClearSuggestions();
                 return;
             }
 
             PublishSuggestions();
+        }
+
+        private static bool TryReadCommandDraft(
+            string input,
+            out int prefixLength,
+            out int commandStart,
+            out int commandLength
+        )
+        {
+            prefixLength = 0;
+            commandStart = 0;
+            commandLength = 0;
+
+            if (string.IsNullOrEmpty(input))
+                return false;
+
+            string prefix =
+                CommandInputParser.Prefix;
+
+            if (
+                input.Length <= prefix.Length
+                && prefix.StartsWith(
+                    input,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                prefixLength = input.Length;
+                return true;
+            }
+
+            if (
+                input.Length < prefix.Length
+                || string.Compare(
+                    input,
+                    0,
+                    prefix,
+                    0,
+                    prefix.Length,
+                    StringComparison.OrdinalIgnoreCase
+                ) != 0
+            )
+            {
+                return false;
+            }
+
+            prefixLength =
+                prefix.Length;
+
+            if (input.Length == prefix.Length)
+                return true;
+
+            if (!char.IsWhiteSpace(input[prefix.Length]))
+                return false;
+
+            commandStart =
+                prefix.Length;
+
+            while (
+                commandStart < input.Length
+                && char.IsWhiteSpace(
+                    input[commandStart]
+                )
+            )
+            {
+                commandStart++;
+            }
+
+            if (commandStart >= input.Length)
+                return true;
+
+            int commandEnd =
+                commandStart;
+
+            while (
+                commandEnd < input.Length
+                && !char.IsWhiteSpace(
+                    input[commandEnd]
+                )
+            )
+            {
+                commandEnd++;
+            }
+
+            commandLength =
+                commandEnd - commandStart;
+
+            return true;
+        }
+
+        private static bool MatchesCommandFragment(
+            CommandDefinition definition,
+            string fragment
+        )
+        {
+            if (string.IsNullOrEmpty(fragment))
+                return true;
+
+            if (
+                definition.CanonicalName.StartsWith(
+                    fragment,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                return true;
+            }
+
+            string[] aliases =
+                definition.Aliases;
+
+            for (
+                int index = 0;
+                index < aliases.Length;
+                index++
+            )
+            {
+                if (
+                    aliases[index].StartsWith(
+                        fragment,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void OnInteraction(
@@ -714,7 +947,14 @@ namespace MarcoZechner.CommandApi.Chat
             if (
                 _setCompanion == null
                 || _registrationId == null
-                || _suggestions.Length == 0
+            )
+            {
+                return;
+            }
+
+            if (
+                _suggestions.Length == 0
+                && !_supportsStyledCompanion
             )
             {
                 return;
@@ -732,14 +972,21 @@ namespace MarcoZechner.CommandApi.Chat
                 CommandDefinition definition =
                     _suggestions[index];
 
-                items[index] =
+                string completionText =
+                    CommandInputParser.Prefix
+                        + " "
+                        + definition.CanonicalName;
+
+                var item =
                     new Dictionary<string, object>(
                         StringComparer.Ordinal
                     )
                     {
                         {
                             "PrimaryText",
-                            definition.CanonicalName
+                            _supportsStyledCompanion
+                                ? completionText
+                                : definition.CanonicalName
                         },
                         {
                             "SecondaryText",
@@ -747,15 +994,29 @@ namespace MarcoZechner.CommandApi.Chat
                         },
                         {
                             "CompletionText",
-                            CommandInputParser.Prefix
-                                + " "
-                                + definition.CanonicalName
+                            completionText
                         }
                     };
+
+                if (_supportsStyledCompanion)
+                {
+                    item.Add(
+                        "PrimarySpans",
+                        new object[]
+                        {
+                            CreateSpan(
+                                0,
+                                CommandInputParser.Prefix.Length,
+                                "Valid"
+                            )
+                        }
+                    );
+                }
+
+                items[index] = item;
             }
 
-            TryRequest(
-                _setCompanion,
+            var request =
                 new Dictionary<string, object>(
                     StringComparer.Ordinal
                 )
@@ -776,8 +1037,120 @@ namespace MarcoZechner.CommandApi.Chat
                         "SelectedIndex",
                         _selectedSuggestionIndex
                     }
+                };
+
+            if (_supportsStyledCompanion)
+            {
+                request.Add(
+                    "HeaderText",
+                    CommandInputParser.Prefix
+                        + " <command>"
+                );
+
+                request.Add(
+                    "HeaderSpans",
+                    new object[]
+                    {
+                        CreateSpan(
+                            0,
+                            CommandInputParser.Prefix.Length,
+                            "Valid"
+                        ),
+                        CreateSpan(
+                            CommandInputParser.Prefix.Length,
+                            10,
+                            "Muted"
+                        )
+                    }
+                );
+
+                request.Add(
+                    "Footer",
+                    _suggestions.Length > 0
+                        ? "Up/Down selects | Tab completes"
+                        : "Type /cmd help for command help."
+                );
+
+                request.Add(
+                    "InputSpans",
+                    BuildInputSpans()
+                );
+
+                if (
+                    !string.IsNullOrWhiteSpace(
+                        _draftErrorText
+                    )
+                )
+                {
+                    request.Add(
+                        "ErrorText",
+                        _draftErrorText
+                    );
                 }
+            }
+
+            TryRequest(
+                _setCompanion,
+                request
             );
+        }
+
+        private object[] BuildInputSpans()
+        {
+            var spans =
+                new List<object>();
+
+            if (_draftPrefixLength > 0)
+            {
+                spans.Add(
+                    CreateSpan(
+                        0,
+                        _draftPrefixLength,
+                        "Valid"
+                    )
+                );
+            }
+
+            if (_draftCommandLength > 0)
+            {
+                spans.Add(
+                    CreateSpan(
+                        _draftCommandStart,
+                        _draftCommandLength,
+                        _suggestions.Length > 0
+                            ? "Valid"
+                            : "Error"
+                    )
+                );
+            }
+
+            return spans.ToArray();
+        }
+
+        private static IDictionary<string, object>
+            CreateSpan(
+                int start,
+                int length,
+                string style
+            )
+        {
+            return new Dictionary<string, object>(
+                StringComparer.Ordinal
+            )
+            {
+                {
+                    "Start",
+                    start
+                },
+                {
+                    "Length",
+                    length
+                },
+                {
+                    "Style",
+                    style
+                }
+            };
         }
 
         private void CompleteSelectedSuggestion()
@@ -826,7 +1199,11 @@ namespace MarcoZechner.CommandApi.Chat
             _suggestions =
                 new CommandDefinition[0];
 
-            _selectedSuggestionIndex = 0;
+            _selectedSuggestionIndex = -1;
+            _draftPrefixLength = 0;
+            _draftCommandStart = 0;
+            _draftCommandLength = 0;
+            _draftErrorText = null;
 
             TryClearCompanion(
                 _clearCompanion,
@@ -973,7 +1350,12 @@ namespace MarcoZechner.CommandApi.Chat
             _suggestions =
                 new CommandDefinition[0];
 
-            _selectedSuggestionIndex = 0;
+            _selectedSuggestionIndex = -1;
+            _draftPrefixLength = 0;
+            _draftCommandStart = 0;
+            _draftCommandLength = 0;
+            _draftErrorText = null;
+            _supportsStyledCompanion = false;
 
             TryInvoke(
                 unregisterRouteInteraction
