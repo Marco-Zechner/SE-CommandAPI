@@ -2,6 +2,10 @@
 
 CommandAPI is a command framework for Space Engineers.
 
+The intended long-term architecture is defined in
+[`DEVELOPMENT_GOAL.md`](DEVELOPMENT_GOAL.md). The current runtime is an
+intermediate implementation and may differ from that target.
+
 ## Current runtime
 
 The current vertical slice supports:
