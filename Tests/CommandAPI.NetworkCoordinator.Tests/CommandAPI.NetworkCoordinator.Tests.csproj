@@ -31,8 +31,8 @@
       Include="..\..\Data\Scripts\CommandAPI\Networking\*.cs"
       Link="Networking\%(Filename)%(Extension)" />
     <Compile
-      Include="..\..\Data\Scripts\CommandAPI\Libraries\Mz.Networking\Core\*.cs"
-      Link="Libraries\Mz.Networking\%(Filename)%(Extension)" />
+      Include="..\..\Data\Scripts\CommandAPI\Libraries\Mz.Networking.Core\**\*.cs"
+      Link="Libraries\Mz.Networking.Core\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

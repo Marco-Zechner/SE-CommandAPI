@@ -12,7 +12,7 @@ namespace MarcoZechner.CommandApi.Tests
     public sealed class RichHudChatCommandAdapterTests
     {
         private const long DiscoveryChannelId =
-            6098967432095689633L;
+            ApiProtocolChannels.Discovery;
 
         [Fact]
         public void ConnectsSubmitsAndPresentsThroughRichHudChatApi()
@@ -128,7 +128,6 @@ namespace MarcoZechner.CommandApi.Tests
             var provider =
                 new ApiDiscoveryProvider(
                     bus,
-                    DiscoveryChannelId,
                     new ApiModIdentity(
                         "MarcoZechner.RichHudChatAPI",
                         "RichHudChatAPI",
@@ -509,7 +508,6 @@ namespace MarcoZechner.CommandApi.Tests
             var provider =
                 new ApiDiscoveryProvider(
                     bus,
-                    DiscoveryChannelId,
                     new ApiModIdentity(
                         "MarcoZechner.RichHudChatAPI",
                         "RichHudChatAPI",
@@ -1110,7 +1108,6 @@ namespace MarcoZechner.CommandApi.Tests
             var provider =
                 new ApiDiscoveryProvider(
                     bus,
-                    DiscoveryChannelId,
                     new ApiModIdentity(
                         "MarcoZechner.RichHudChatAPI",
                         "RichHudChatAPI",

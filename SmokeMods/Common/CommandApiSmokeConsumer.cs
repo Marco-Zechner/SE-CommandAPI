@@ -11,7 +11,7 @@ namespace MarcoZechner.CommandApi.Smoke
         IDisposable
     {
         private const long DiscoveryChannelId =
-            1154638390L;
+            ApiProtocolChannels.Discovery;
 
         private const string CommandApiId =
             "MarcoZechner.CommandAPI";
@@ -114,7 +114,6 @@ namespace MarcoZechner.CommandApi.Smoke
             _consumer =
                 new ApiDiscoveryConsumer(
                     new SpaceEngineersModMessageBus(),
-                    DiscoveryChannelId,
                     dependency
                 );
 

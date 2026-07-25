@@ -11,7 +11,7 @@ namespace MarcoZechner.CommandApi.Tests
     public sealed class CommandApiProviderTests
     {
         private const long DiscoveryChannelId =
-            1154638390L;
+            ApiProtocolChannels.Discovery;
 
         [Fact]
         public void StartPublishesRegistrationEndpoint()

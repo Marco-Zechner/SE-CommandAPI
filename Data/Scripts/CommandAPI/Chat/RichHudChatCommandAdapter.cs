@@ -11,7 +11,7 @@ namespace MarcoZechner.CommandApi.Chat
         IDisposable
     {
         private const long DiscoveryChannelId =
-            6098967432095689633L;
+            ApiProtocolChannels.Discovery;
 
         private const string RichHudChatApiId =
             "MarcoZechner.RichHudChatAPI";
@@ -223,7 +223,6 @@ namespace MarcoZechner.CommandApi.Chat
             var consumer =
                 new ApiDiscoveryConsumer(
                     _messageBus,
-                    DiscoveryChannelId,
                     dependency
                 );
 
