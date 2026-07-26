@@ -11,7 +11,7 @@ namespace MarcoZechner.CommandApi.Api
         IDisposable
     {
         public const long DiscoveryChannelId =
-            1154638390L;
+            ApiProtocolChannels.Discovery;
 
         public const string ApiId =
             "MarcoZechner.CommandAPI";
@@ -70,7 +70,6 @@ namespace MarcoZechner.CommandApi.Api
             _provider =
                 new ApiDiscoveryProvider(
                     messageBus,
-                    DiscoveryChannelId,
                     new ApiModIdentity(
                         ApiId,
                         "CommandAPI",

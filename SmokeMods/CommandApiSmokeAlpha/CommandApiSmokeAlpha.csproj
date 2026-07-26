@@ -25,7 +25,13 @@
       Include="..\Common\CommandApiSmokeConsumer.cs"
       Link="Shared\CommandApiSmokeConsumer.cs" />
     <Compile
-      Include="..\..\Data\Scripts\CommandAPI\Libraries\Mz.ApiProtocol\**\*.cs"
-      Link="Libraries\Mz.ApiProtocol\%(RecursiveDir)%(Filename)%(Extension)" />
+      Include="..\..\Data\Scripts\CommandAPI\Libraries\Mz.ApiProtocol.Core\**\*.cs"
+      Link="Libraries\Mz.ApiProtocol.Core\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile
+      Include="..\..\Data\Scripts\CommandAPI\Libraries\Mz.ApiProtocol.SpaceEngineers\**\*.cs"
+      Link="Libraries\Mz.ApiProtocol.SpaceEngineers\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile
+      Include="..\..\Data\Scripts\CommandAPI\Libraries\Mz.SemanticVersioning\**\*.cs"
+      Link="Libraries\Mz.SemanticVersioning\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

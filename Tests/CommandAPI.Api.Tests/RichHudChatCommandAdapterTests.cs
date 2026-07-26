@@ -12,7 +12,7 @@ namespace MarcoZechner.CommandApi.Tests
     public sealed class RichHudChatCommandAdapterTests
     {
         private const long DiscoveryChannelId =
-            6098967432095689633L;
+            ApiProtocolChannels.Discovery;
 
         [Fact]
         public void ConnectsSubmitsAndPresentsThroughRichHudChatApi()
@@ -128,7 +128,6 @@ namespace MarcoZechner.CommandApi.Tests
             var provider =
                 new ApiDiscoveryProvider(
                     bus,
-                    DiscoveryChannelId,
                     new ApiModIdentity(
                         "MarcoZechner.RichHudChatAPI",
                         "RichHudChatAPI",
@@ -509,7 +508,6 @@ namespace MarcoZechner.CommandApi.Tests
             var provider =
                 new ApiDiscoveryProvider(
                     bus,
-                    DiscoveryChannelId,
                     new ApiModIdentity(
                         "MarcoZechner.RichHudChatAPI",
                         "RichHudChatAPI",
@@ -819,6 +817,524 @@ namespace MarcoZechner.CommandApi.Tests
             Assert.Equal(1, routeUnregisterCount);
             Assert.Equal(1, participantUnregisterCount);
             Assert.True(clearCompanionCount >= 1);
+
+            adapter.Dispose();
+            provider.Dispose();
+        }
+
+        [Fact]
+        public void SynchronizesLateExternalPrefixRoutesWithCompanionAndSubmission()
+        {
+            var bus =
+                new RecordingModMessageBus();
+
+            var registry =
+                new CommandRegistry();
+
+            Register(
+                registry,
+                new CommandDefinition(
+                    "help",
+                    new string[0],
+                    "Lists commands.",
+                    "Lists commands.",
+                    "help",
+                    "CommandAPI",
+                    CommandExecutionLocation.Either,
+                    0,
+                    "CommandAPI.Tests",
+                    NoOpHandler
+                )
+            );
+
+            Action unregisterPreexisting;
+            string preexistingRegistrationError;
+
+            Assert.True(
+                registry.TryRegister(
+                    "/preexisting",
+                    new CommandDefinition(
+                        "status",
+                        new string[0],
+                        "Shows pre-existing provider status.",
+                        "Shows pre-existing provider status.",
+                        "status",
+                        "PreExisting",
+                        CommandExecutionLocation.Client,
+                        0,
+                        "CommandAPI.Tests.PreExisting",
+                        NoOpHandler
+                    ),
+                    out unregisterPreexisting,
+                    out preexistingRegistrationError
+                ),
+                preexistingRegistrationError
+            );
+
+            var routeSubmissions =
+                new Dictionary<
+                    string,
+                    Action<string>
+                >(
+                    StringComparer.Ordinal
+                );
+
+            var routeInputChanges =
+                new Dictionary<
+                    string,
+                    Action<string>
+                >(
+                    StringComparer.Ordinal
+                );
+
+            var routeIds =
+                new Dictionary<
+                    string,
+                    string
+                >(
+                    StringComparer.Ordinal
+                );
+
+            var interactions =
+                new Dictionary<
+                    string,
+                    Action<string>
+                >(
+                    StringComparer.Ordinal
+                );
+
+            int externalRouteUnregisterCount =
+                0;
+
+            int externalInteractionUnregisterCount =
+                0;
+
+            IDictionary<string, object> companionRequest =
+                null;
+
+            IDictionary<string, object> inputRequest =
+                null;
+
+            Func<
+                IDictionary<string, object>,
+                IDictionary<string, object>
+            > registerParticipant =
+                delegate(
+                    IDictionary<string, object> metadata
+                )
+                {
+                    return new Dictionary<string, object>
+                    {
+                        {
+                            "RegistrationId",
+                            "registration-1"
+                        },
+                        {
+                            "Unregister",
+                            new Action(
+                                delegate
+                                {
+                                }
+                            )
+                        }
+                    };
+                };
+
+            Func<
+                IDictionary<string, object>,
+                Action<string>,
+                Action<string>,
+                Action
+            > registerRoute =
+                delegate(
+                    IDictionary<string, object> metadata,
+                    Action<string> submit,
+                    Action<string> inputChanged
+                )
+                {
+                    string prefix =
+                        (string)metadata["Prefix"];
+
+                    string routeId =
+                        (string)metadata["RouteId"];
+
+                    routeSubmissions.Add(
+                        prefix,
+                        submit
+                    );
+
+                    routeInputChanges.Add(
+                        prefix,
+                        inputChanged
+                    );
+
+                    routeIds.Add(
+                        prefix,
+                        routeId
+                    );
+
+                    return delegate
+                    {
+                        routeSubmissions.Remove(prefix);
+                        routeInputChanges.Remove(prefix);
+                        routeIds.Remove(prefix);
+
+                        if (
+                            string.Equals(
+                                prefix,
+                                "/rhchat",
+                                StringComparison.Ordinal
+                            )
+                        )
+                        {
+                            externalRouteUnregisterCount++;
+                        }
+                    };
+                };
+
+            Action<
+                IDictionary<string, object>
+            > appendTranscript =
+                delegate(
+                    IDictionary<string, object> entry
+                )
+                {
+                };
+
+            Func<
+                IDictionary<string, object>,
+                bool
+            > setCompanion =
+                delegate(
+                    IDictionary<string, object> request
+                )
+                {
+                    companionRequest = request;
+                    return true;
+                };
+
+            Func<
+                IDictionary<string, object>,
+                bool
+            > clearCompanion =
+                delegate(
+                    IDictionary<string, object> request
+                )
+                {
+                    return true;
+                };
+
+            Func<
+                IDictionary<string, object>,
+                Action<string>,
+                Action
+            > registerRouteInteraction =
+                delegate(
+                    IDictionary<string, object> metadata,
+                    Action<string> handler
+                )
+                {
+                    string routeId =
+                        (string)metadata["RouteId"];
+
+                    interactions.Add(
+                        routeId,
+                        handler
+                    );
+
+                    return delegate
+                    {
+                        interactions.Remove(routeId);
+
+                        if (
+                            routeId.StartsWith(
+                                "commands-external-",
+                                StringComparison.Ordinal
+                            )
+                        )
+                        {
+                            externalInteractionUnregisterCount++;
+                        }
+                    };
+                };
+
+            Func<
+                IDictionary<string, object>,
+                bool
+            > setInput =
+                delegate(
+                    IDictionary<string, object> request
+                )
+                {
+                    inputRequest = request;
+                    return true;
+                };
+
+            var endpoints =
+                new Dictionary<string, Delegate>(
+                    StringComparer.Ordinal
+                )
+                {
+                    {
+                        "RegisterParticipant",
+                        registerParticipant
+                    },
+                    {
+                        "RegisterRoute",
+                        registerRoute
+                    },
+                    {
+                        "AppendTranscript",
+                        appendTranscript
+                    },
+                    {
+                        "SetCompanion",
+                        setCompanion
+                    },
+                    {
+                        "ClearCompanion",
+                        clearCompanion
+                    },
+                    {
+                        "RegisterRouteInteraction",
+                        registerRouteInteraction
+                    },
+                    {
+                        "SetInput",
+                        setInput
+                    }
+                };
+
+            var provider =
+                new ApiDiscoveryProvider(
+                    bus,
+                    new ApiModIdentity(
+                        "MarcoZechner.RichHudChatAPI",
+                        "RichHudChatAPI",
+                        new SemanticVersion(
+                            0,
+                            1,
+                            0
+                        )
+                    ),
+                    new ApiDescriptor(
+                        "MarcoZechner.RichHudChatAPI",
+                        new SemanticVersion(
+                            1,
+                            3,
+                            0
+                        )
+                    ),
+                    endpoints
+                );
+
+            CommandInput observedInput =
+                null;
+
+            int submissionCount =
+                0;
+
+            var adapter =
+                new RichHudChatCommandAdapter(
+                    bus,
+                    42UL,
+                    delegate(
+                        ulong senderId,
+                        CommandInput input
+                    )
+                    {
+                        observedInput = input;
+                        submissionCount++;
+                    },
+                    registry
+                );
+
+            provider.Start();
+            adapter.Start();
+
+            Assert.True(adapter.IsConnected);
+
+            Assert.True(
+                routeSubmissions.ContainsKey(
+                    "/cmd"
+                )
+            );
+
+            Assert.True(
+                routeSubmissions.ContainsKey(
+                    "/preexisting"
+                )
+            );
+
+            Assert.NotNull(
+                routeInputChanges["/preexisting"]
+            );
+
+            string preexistingRouteId =
+                routeIds["/preexisting"];
+
+            Assert.True(
+                interactions.ContainsKey(
+                    preexistingRouteId
+                )
+            );
+
+            unregisterPreexisting();
+
+            Assert.False(
+                routeSubmissions.ContainsKey(
+                    "/preexisting"
+                )
+            );
+
+            Assert.False(
+                interactions.ContainsKey(
+                    preexistingRouteId
+                )
+            );
+
+            Assert.Equal(
+                1,
+                externalInteractionUnregisterCount
+            );
+
+            Action unregisterExternal;
+            string registrationError;
+
+            Assert.True(
+                registry.TryRegister(
+                    "/rhchat",
+                    new CommandDefinition(
+                        "status",
+                        new string[0],
+                        "Shows RichHudChatAPI status.",
+                        "Shows RichHudChatAPI status.",
+                        "status",
+                        "RichHudChatAPI",
+                        CommandExecutionLocation.Client,
+                        0,
+                        "MarcoZechner.RichHudChatAPI",
+                        NoOpHandler
+                    ),
+                    out unregisterExternal,
+                    out registrationError
+                ),
+                registrationError
+            );
+
+            Assert.True(
+                routeSubmissions.ContainsKey(
+                    "/rhchat"
+                )
+            );
+
+            Assert.NotNull(
+                routeInputChanges["/rhchat"]
+            );
+
+            string externalRouteId =
+                routeIds["/rhchat"];
+
+            Assert.True(
+                interactions.ContainsKey(
+                    externalRouteId
+                )
+            );
+
+            routeInputChanges["/rhchat"](
+                "/rhchat s"
+            );
+
+            Assert.NotNull(companionRequest);
+
+            Assert.Equal(
+                externalRouteId,
+                companionRequest["RouteId"]
+            );
+
+            Assert.Equal(
+                "/rhchat <command>",
+                companionRequest["HeaderText"]
+            );
+
+            IDictionary<string, object>[] items =
+                ReadDictionaries(
+                    companionRequest,
+                    "Items"
+                );
+
+            Assert.Single(items);
+
+            Assert.Equal(
+                "/rhchat status",
+                items[0]["PrimaryText"]
+            );
+
+            Assert.Equal(
+                "/rhchat status",
+                items[0]["CompletionText"]
+            );
+
+            interactions[externalRouteId](
+                "Complete"
+            );
+
+            Assert.NotNull(inputRequest);
+
+            Assert.Equal(
+                externalRouteId,
+                inputRequest["RouteId"]
+            );
+
+            Assert.Equal(
+                "/rhchat status",
+                inputRequest["Input"]
+            );
+
+            routeSubmissions["/rhchat"](
+                "/rhchat status"
+            );
+
+            Assert.Equal(
+                1,
+                submissionCount
+            );
+
+            Assert.NotNull(observedInput);
+
+            Assert.Equal(
+                "/rhchat",
+                observedInput.Prefix
+            );
+
+            Assert.Equal(
+                "status",
+                observedInput.CommandName
+            );
+
+            unregisterExternal();
+
+            Assert.False(
+                routeSubmissions.ContainsKey(
+                    "/rhchat"
+                )
+            );
+
+            Assert.False(
+                interactions.ContainsKey(
+                    externalRouteId
+                )
+            );
+
+            Assert.Equal(
+                1,
+                externalRouteUnregisterCount
+            );
+
+            Assert.Equal(
+                2,
+                externalInteractionUnregisterCount
+            );
 
             adapter.Dispose();
             provider.Dispose();

@@ -6,3 +6,4 @@
 *.suo
 *.nupkg
 .agent/
+/.selibs/
