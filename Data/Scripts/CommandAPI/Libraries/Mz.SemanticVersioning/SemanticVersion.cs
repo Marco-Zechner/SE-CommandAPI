@@ -33,22 +33,13 @@ namespace Mz.SemanticVersioning
         public SemanticVersion(int major, int minor, int patch)
         {
             if (major < 0)
-                throw new ArgumentException(
-                    "The major component cannot be negative.",
-                    nameof(major)
-                );
+                throw new ArgumentException("The major component cannot be negative.", nameof(major));
 
             if (minor < 0)
-                throw new ArgumentException(
-                    "The minor component cannot be negative.",
-                    nameof(minor)
-                );
+                throw new ArgumentException("The minor component cannot be negative.", nameof(minor));
 
             if (patch < 0)
-                throw new ArgumentException(
-                    "The patch component cannot be negative.",
-                    nameof(patch)
-                );
+                throw new ArgumentException("The patch component cannot be negative.", nameof(patch));
 
             Major = major;
             Minor = minor;
@@ -75,9 +66,7 @@ namespace Mz.SemanticVersioning
 
             if (TryParse(value, out version)) 
                 return version;
-            throw new FormatException(
-                "Semantic version must use the format major.minor.patch with three non-negative decimal integer components."
-            );
+            throw new FormatException("Semantic version must use the format major.minor.patch with three non-negative decimal integer components.");
         }
 
         /// <summary>

@@ -2,7 +2,7 @@
     "schemaVersion":  1,
     "librariesPath":  "Data/Scripts/CommandAPI/Libraries",
     "dependencies":  {
-                         "Mz.ApiProtocol":  "0.2.0",
-                         "Mz.Networking":  "0.1.0"
+                         "Mz.ApiProtocol":  "0.2.2",
+                         "Mz.Networking":  "0.1.2"
                      }
 }
