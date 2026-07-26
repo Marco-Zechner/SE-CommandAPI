@@ -173,6 +173,7 @@ namespace MarcoZechner.CommandApi.Tests
                         return new CommandStatusSnapshot(
                             "0.1.0",
                             "1.0.0",
+                            "1.0.0",
                             "Not initialized",
                             false,
                             "VanillaChat",

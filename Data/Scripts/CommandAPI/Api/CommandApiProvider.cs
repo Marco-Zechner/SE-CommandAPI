@@ -74,17 +74,17 @@ namespace MarcoZechner.CommandApi.Api
                         ApiId,
                         "CommandAPI",
                         new SemanticVersion(
-                            0,
-                            1,
-                            0
+                            ModVersionFile.Major,
+                            ModVersionFile.Minor,
+                            ModVersionFile.Patch
                         )
                     ),
                     new ApiDescriptor(
                         ApiId,
                         new SemanticVersion(
-                            1,
-                            1,
-                            0
+                            ApiVersionFile.Major,
+                            ApiVersionFile.Minor,
+                            ApiVersionFile.Patch
                         )
                     ),
                     endpoints

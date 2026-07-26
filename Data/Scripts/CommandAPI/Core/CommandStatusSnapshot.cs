@@ -4,7 +4,9 @@ namespace MarcoZechner.CommandApi.Core
 {
     public sealed class CommandStatusSnapshot
     {
-        public string CommandApiVersion { get; }
+        public string ModVersion { get; }
+
+        public string ApiVersion { get; }
 
         public string ProtocolVersion { get; }
 
@@ -17,7 +19,8 @@ namespace MarcoZechner.CommandApi.Core
         public int ExternalProviderCount { get; }
 
         public CommandStatusSnapshot(
-            string commandApiVersion,
+            string modVersion,
+            string apiVersion,
             string protocolVersion,
             string networkState,
             bool richHudChatAvailable,
@@ -25,9 +28,14 @@ namespace MarcoZechner.CommandApi.Core
             int externalProviderCount
         )
         {
-            if (commandApiVersion == null)
+            if (modVersion == null)
                 throw new ArgumentNullException(
-                    nameof(commandApiVersion)
+                    nameof(modVersion)
+                );
+
+            if (apiVersion == null)
+                throw new ArgumentNullException(
+                    nameof(apiVersion)
                 );
 
             if (protocolVersion == null)
@@ -45,7 +53,8 @@ namespace MarcoZechner.CommandApi.Core
                     nameof(presentationAdapter)
                 );
 
-            CommandApiVersion = commandApiVersion;
+            ModVersion = modVersion;
+            ApiVersion = apiVersion;
             ProtocolVersion = protocolVersion;
             NetworkState = networkState;
             RichHudChatAvailable = richHudChatAvailable;

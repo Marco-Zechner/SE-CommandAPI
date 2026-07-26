@@ -390,8 +390,10 @@ namespace MarcoZechner.CommandApi.Core
                 "CommandAPI is running.",
                 new[]
                 {
-                    "CommandAPI version: "
-                        + snapshot.CommandApiVersion,
+                    "CommandAPI mod version: "
+                        + snapshot.ModVersion,
+                    "CommandAPI API version: "
+                        + snapshot.ApiVersion,
                     "Protocol version: "
                         + snapshot.ProtocolVersion,
                     "Registered commands: "

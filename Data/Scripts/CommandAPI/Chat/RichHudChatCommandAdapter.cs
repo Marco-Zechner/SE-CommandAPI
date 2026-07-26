@@ -196,9 +196,9 @@ namespace MarcoZechner.CommandApi.Chat
                         OwnerId,
                         DisplayName,
                         new SemanticVersion(
-                            0,
-                            2,
-                            0
+                            ModVersionFile.Major,
+                            ModVersionFile.Minor,
+                            ModVersionFile.Patch
                         )
                     ),
                     new ApiRequirement(
