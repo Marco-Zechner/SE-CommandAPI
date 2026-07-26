@@ -259,9 +259,9 @@ A dedicated network protocol version file should be added only when the
 protocol needs its own visible compatibility policy or changelog. Network
 protocol changes are still recorded in the mod changelog.
 
-## Current inconsistencies to remove
+## Version inconsistencies addressed by Slice 1
 
-The current implementation contains several duplicated version values:
+Before Slice 1, the implementation contained several duplicated version values:
 
 - `CommandApiSession` reports mod version `0.2.0`;
 - `CommandApiProvider` publishes provider identity version `0.1.0`;
@@ -271,12 +271,12 @@ The current implementation contains several duplicated version values:
 
 The provider identity version is already stale.
 
-Implementation must replace duplicate mod and API literals with the appropriate
-version files and update tests to enforce the single sources of truth.
+Slice 1 replaces the duplicated mod and API literals with the appropriate
+version files and adds tests that enforce those single sources of truth.
 
 ## Implementation slices
 
-### Slice 1: provider version files
+### Slice 1: provider version files (implemented)
 
 - Add `ModVersionFile.cs`.
 - Add provider `ApiVersionFile.cs`.

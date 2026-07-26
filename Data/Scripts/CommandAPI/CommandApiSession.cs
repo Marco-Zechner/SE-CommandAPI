@@ -18,9 +18,6 @@ namespace MarcoZechner.CommandApi
         private const string ModDisplayName =
             "CommandAPI";
 
-        private const string CommandApiVersion =
-            "0.2.0";
-
         private const string ProtocolVersion =
             "2.0.0";
 
@@ -421,7 +418,8 @@ namespace MarcoZechner.CommandApi
                     : _presentationAdapter;
 
             return new CommandStatusSnapshot(
-                CommandApiVersion,
+                ModVersionFile.VersionString,
+                ApiVersionFile.VersionString,
                 ProtocolVersion,
                 _networkState,
                 richHudChatAvailable,

@@ -25,6 +25,12 @@
 
   <ItemGroup>
     <Compile
+      Include="..\..\Data\Scripts\CommandAPI\ModVersionFile.cs"
+      Link="ModVersionFile.cs" />
+    <Compile
+      Include="..\..\Data\Scripts\CommandAPI\ApiVersionFile.cs"
+      Link="ApiVersionFile.cs" />
+    <Compile
       Include="..\..\Data\Scripts\CommandAPI\Core\**\*.cs"
       Link="Core\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile

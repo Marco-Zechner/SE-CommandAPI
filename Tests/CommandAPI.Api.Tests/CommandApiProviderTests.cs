@@ -61,7 +61,7 @@ namespace MarcoZechner.CommandApi.Tests
             );
 
             Assert.Equal(
-                "0.1.0",
+                ModVersionFile.VersionString,
                 announcement.Provider.Version.ToString()
             );
 
@@ -71,7 +71,7 @@ namespace MarcoZechner.CommandApi.Tests
             );
 
             Assert.Equal(
-                "1.1.0",
+                ApiVersionFile.VersionString,
                 announcement.Descriptor.Version.ToString()
             );
 

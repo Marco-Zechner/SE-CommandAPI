@@ -255,7 +255,8 @@ namespace MarcoZechner.CommandApi.Tests
             SequenceEqual(
                 new[]
                 {
-                    "CommandAPI version: 0.1.0",
+                    "CommandAPI mod version: 0.1.0",
+                    "CommandAPI API version: 1.2.0",
                     "Protocol version: 1.0.0",
                     "Registered commands: 5",
                     "Network: Not initialized",
@@ -281,6 +282,7 @@ namespace MarcoZechner.CommandApi.Tests
                     {
                         return new CommandStatusSnapshot(
                             "0.1.0",
+                            "1.2.0",
                             "1.0.0",
                             "Not initialized",
                             false,
