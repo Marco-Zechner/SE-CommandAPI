@@ -8,6 +8,7 @@
   </Folder>
   <Folder Name="/Tests/">
     <Project Path="Tests/CommandAPI.Api.Tests/CommandAPI.Api.Tests.csproj" />
+    <Project Path="Tests/CommandAPI.Consumer.Tests/CommandAPI.Consumer.Tests.csproj" />
     <Project Path="Tests/CommandAPI.BasicBuiltIns.Tests/CommandAPI.BasicBuiltIns.Tests.csproj" />
     <Project Path="Tests/CommandAPI.BuiltIns.Tests/CommandAPI.BuiltIns.Tests.csproj" />
     <Project Path="Tests/CommandAPI.Core.Tests/CommandAPI.Core.Tests.csproj" />
