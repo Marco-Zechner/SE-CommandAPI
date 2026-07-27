@@ -35,19 +35,20 @@ namespace Mz.CommandApi
             > handler
         )
         {
-            _owner =
-                owner
-                ?? throw new ArgumentNullException(nameof(owner));
+            if (owner == null)
+                throw new ArgumentNullException(nameof(owner));
 
-            Registration =
-                registration
-                ?? throw new ArgumentNullException(
+            if (registration == null)
+                throw new ArgumentNullException(
                     nameof(registration)
                 );
 
-            Handler =
-                handler
-                ?? throw new ArgumentNullException(nameof(handler));
+            if (handler == null)
+                throw new ArgumentNullException(nameof(handler));
+
+            _owner = owner;
+            Registration = registration;
+            Handler = handler;
         }
 
         public void Dispose()

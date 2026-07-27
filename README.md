@@ -92,7 +92,9 @@ server command handlers are both available in the correct process.
 
 ## Smoke consumers
 
-The two included smoke mods both use the shared `/smoke` prefix.
+The two included smoke mods compile and use the typed
+`Mz.CommandAPI.Consumer` facade rather than handling discovery dictionaries
+directly. Both use the shared `/smoke` prefix.
 
 Each registers a deterministic server command:
 

@@ -25,6 +25,9 @@
       Include="..\Common\CommandApiSmokeConsumer.cs"
       Link="Shared\CommandApiSmokeConsumer.cs" />
     <Compile
+      Include="..\..\Consumer\Mz.CommandAPI.Consumer\**\*.cs"
+      Link="Libraries\Mz.CommandAPI.Consumer\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile
       Include="..\..\Data\Scripts\CommandAPI\Libraries\Mz.ApiProtocol.Core\**\*.cs"
       Link="Libraries\Mz.ApiProtocol.Core\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile
