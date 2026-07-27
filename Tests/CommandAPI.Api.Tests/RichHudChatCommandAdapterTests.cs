@@ -4,6 +4,7 @@ using MarcoZechner.CommandApi.Chat;
 using MarcoZechner.CommandApi.Core;
 using Mz.ApiProtocol;
 using Mz.ApiProtocol.SpaceEngineers;
+using Mz.RichHudChatApi;
 using Mz.SemanticVersioning;
 using Xunit;
 
@@ -125,6 +126,8 @@ namespace MarcoZechner.CommandApi.Tests
                     }
                 };
 
+            AddRequiredFacadeEndpoints(endpoints);
+
             var provider =
                 new ApiDiscoveryProvider(
                     bus,
@@ -141,7 +144,7 @@ namespace MarcoZechner.CommandApi.Tests
                         "MarcoZechner.RichHudChatAPI",
                         new SemanticVersion(
                             1,
-                            0,
+                            4,
                             0
                         )
                     ),
@@ -195,10 +198,9 @@ namespace MarcoZechner.CommandApi.Tests
                 routeMetadata["IsDefault"]
             );
 
-            Assert.False(
-                routeMetadata.ContainsKey(
-                    "ActivationPrefix"
-                )
+            Assert.Equal(
+                "/",
+                routeMetadata["ActivationPrefix"]
             );
 
             Assert.Single(transcript);
@@ -521,7 +523,7 @@ namespace MarcoZechner.CommandApi.Tests
                         "MarcoZechner.RichHudChatAPI",
                         new SemanticVersion(
                             1,
-                            3,
+                            4,
                             0
                         )
                     ),
@@ -816,7 +818,6 @@ namespace MarcoZechner.CommandApi.Tests
             Assert.Equal(1, interactionUnregisterCount);
             Assert.Equal(1, routeUnregisterCount);
             Assert.Equal(1, participantUnregisterCount);
-            Assert.True(clearCompanionCount >= 1);
 
             adapter.Dispose();
             provider.Dispose();
@@ -1121,7 +1122,7 @@ namespace MarcoZechner.CommandApi.Tests
                         "MarcoZechner.RichHudChatAPI",
                         new SemanticVersion(
                             1,
-                            3,
+                            4,
                             0
                         )
                     ),
@@ -1338,6 +1339,103 @@ namespace MarcoZechner.CommandApi.Tests
 
             adapter.Dispose();
             provider.Dispose();
+        }
+
+        private static void AddRequiredFacadeEndpoints(
+            IDictionary<string, Delegate> endpoints
+        )
+        {
+            if (
+                !endpoints.ContainsKey(
+                    RichHudChatApiClient.SetCompanionEndpoint
+                )
+            )
+            {
+                endpoints.Add(
+                    RichHudChatApiClient.SetCompanionEndpoint,
+                    new Func<
+                        IDictionary<string, object>,
+                        bool
+                    >(
+                        delegate(
+                            IDictionary<string, object> request
+                        )
+                        {
+                            return true;
+                        }
+                    )
+                );
+            }
+
+            if (
+                !endpoints.ContainsKey(
+                    RichHudChatApiClient.ClearCompanionEndpoint
+                )
+            )
+            {
+                endpoints.Add(
+                    RichHudChatApiClient.ClearCompanionEndpoint,
+                    new Func<
+                        IDictionary<string, object>,
+                        bool
+                    >(
+                        delegate(
+                            IDictionary<string, object> request
+                        )
+                        {
+                            return true;
+                        }
+                    )
+                );
+            }
+
+            if (
+                !endpoints.ContainsKey(
+                    RichHudChatApiClient.RegisterRouteInteractionEndpoint
+                )
+            )
+            {
+                endpoints.Add(
+                    RichHudChatApiClient.RegisterRouteInteractionEndpoint,
+                    new Func<
+                        IDictionary<string, object>,
+                        Action<string>,
+                        Action
+                    >(
+                        delegate(
+                            IDictionary<string, object> request,
+                            Action<string> handler
+                        )
+                        {
+                            return delegate
+                            {
+                            };
+                        }
+                    )
+                );
+            }
+
+            if (
+                !endpoints.ContainsKey(
+                    RichHudChatApiClient.SetInputEndpoint
+                )
+            )
+            {
+                endpoints.Add(
+                    RichHudChatApiClient.SetInputEndpoint,
+                    new Func<
+                        IDictionary<string, object>,
+                        bool
+                    >(
+                        delegate(
+                            IDictionary<string, object> request
+                        )
+                        {
+                            return true;
+                        }
+                    )
+                );
+            }
         }
 
         private static IDictionary<string, object>[]

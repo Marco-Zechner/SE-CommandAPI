@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using MarcoZechner.CommandApi.Core;
-using Mz.ApiProtocol;
 using Mz.ApiProtocol.SpaceEngineers;
+using Mz.RichHudChatApi;
 using Mz.SemanticVersioning;
 
 namespace MarcoZechner.CommandApi.Chat
@@ -10,33 +10,6 @@ namespace MarcoZechner.CommandApi.Chat
     public sealed class RichHudChatCommandAdapter :
         IDisposable
     {
-        private const long DiscoveryChannelId =
-            ApiProtocolChannels.Discovery;
-
-        private const string RichHudChatApiId =
-            "MarcoZechner.RichHudChatAPI";
-
-        private const string RegisterParticipantEndpoint =
-            "RegisterParticipant";
-
-        private const string RegisterRouteEndpoint =
-            "RegisterRoute";
-
-        private const string AppendTranscriptEndpoint =
-            "AppendTranscript";
-
-        private const string SetCompanionEndpoint =
-            "SetCompanion";
-
-        private const string ClearCompanionEndpoint =
-            "ClearCompanion";
-
-        private const string RegisterRouteInteractionEndpoint =
-            "RegisterRouteInteraction";
-
-        private const string SetInputEndpoint =
-            "SetInput";
-
         private const string OwnerId =
             "MarcoZechner.CommandAPI";
 
@@ -57,24 +30,9 @@ namespace MarcoZechner.CommandApi.Chat
 
         private readonly CommandRegistry _registry;
 
-        private ApiDiscoveryConsumer _consumer;
-
-        private Action _unregisterParticipant;
-        private Action _unregisterRoute;
-        private Action _unregisterRouteInteraction;
-
-        private Func<
-            IDictionary<string, object>,
-            Action<string>,
-            Action<string>,
-            Action
-        > _registerRoute;
-
-        private Func<
-            IDictionary<string, object>,
-            Action<string>,
-            Action
-        > _registerRouteInteraction;
+        private RichHudChatApiClient _client;
+        private ChatParticipantHandle _participant;
+        private ChatRouteHandle _route;
 
         private readonly Dictionary<
             string,
@@ -89,25 +47,6 @@ namespace MarcoZechner.CommandApi.Chat
 
         private int _nextExternalRouteId =
             1;
-
-        private Action<
-            IDictionary<string, object>
-        > _appendTranscript;
-
-        private Func<
-            IDictionary<string, object>,
-            bool
-        > _setCompanion;
-
-        private Func<
-            IDictionary<string, object>,
-            bool
-        > _clearCompanion;
-
-        private Func<
-            IDictionary<string, object>,
-            bool
-        > _setInput;
 
         private CommandDefinition[] _suggestions =
             new CommandDefinition[0];
@@ -126,18 +65,18 @@ namespace MarcoZechner.CommandApi.Chat
 
         private string _draftErrorText;
 
-        private bool _supportsStyledCompanion;
-
-        private string _registrationId;
         private bool _disposed;
 
         public bool IsConnected
         {
             get
             {
-                return _registrationId != null
-                    && _unregisterRoute != null
-                    && _appendTranscript != null;
+                return _client != null
+                    && _client.IsConnected
+                    && _participant != null
+                    && _participant.IsActive
+                    && _route != null
+                    && _route.IsActive;
             }
         }
 
@@ -187,63 +126,90 @@ namespace MarcoZechner.CommandApi.Chat
         {
             ThrowIfDisposed();
 
-            if (_consumer != null)
+            if (_client != null)
                 return;
 
-            var dependency =
-                new ApiDependencyDescriptor(
-                    new ApiModIdentity(
-                        OwnerId,
-                        DisplayName,
-                        new SemanticVersion(
-                            ModVersionFile.Major,
-                            ModVersionFile.Minor,
-                            ModVersionFile.Patch
-                        )
+            var client =
+                new RichHudChatApiClient(
+                    _messageBus,
+                    OwnerId,
+                    DisplayName,
+                    new SemanticVersion(
+                        ModVersionFile.Major,
+                        ModVersionFile.Minor,
+                        ModVersionFile.Patch
                     ),
-                    new ApiRequirement(
-                        RichHudChatApiId,
-                        new ApiVersionRange(
-                            new SemanticVersion(
-                                1,
-                                0,
-                                0
-                            ),
-                            new SemanticVersion(
-                                2,
-                                0,
-                                0
-                            )
-                        )
-                    ),
-                    ApiDependencyKind.Optional,
+                    false,
                     "Uses RichHudChatAPI for command input and result presentation."
                 );
 
-            var consumer =
-                new ApiDiscoveryConsumer(
-                    _messageBus,
-                    dependency
-                );
+            client.Connected += OnConnected;
+            client.Disconnected += OnDisconnected;
+            client.ParticipantRegistrationFailed +=
+                OnParticipantRegistrationFailed;
 
-            consumer.Connected += OnConnected;
-            consumer.Disconnected += OnDisconnected;
+            client.RouteRegistrationFailed +=
+                OnRouteRegistrationFailed;
 
-            _consumer = consumer;
+            ChatParticipantHandle participant =
+                null;
+
+            ChatRouteHandle route =
+                null;
 
             try
             {
-                consumer.Start();
-                consumer.RequestDiscovery();
+                participant =
+                    client.RegisterParticipant(
+                        new ChatParticipantRegistration(
+                            DisplayName
+                        )
+                    );
+
+                Action<string> inputChanged =
+                    _registry == null
+                        ? null
+                        : (Action<string>)OnInputChanged;
+
+                Action<string> interaction =
+                    _registry == null
+                        ? null
+                        : (Action<string>)OnInteraction;
+
+                route =
+                    participant.RegisterRoute(
+                        new ChatRouteRegistration(
+                            RouteId,
+                            CommandInputParser.Prefix,
+                            "/",
+                            "CommandAPI commands."
+                        ),
+                        OnSubmittedInput,
+                        inputChanged,
+                        interaction
+                    );
+
+                _client = client;
+                _participant = participant;
+                _route = route;
+
+                client.Start();
             }
             catch
             {
-                _consumer = null;
+                _route = null;
+                _participant = null;
+                _client = null;
 
-                consumer.Connected -= OnConnected;
-                consumer.Disconnected -= OnDisconnected;
-                consumer.Dispose();
+                client.Connected -= OnConnected;
+                client.Disconnected -= OnDisconnected;
+                client.ParticipantRegistrationFailed -=
+                    OnParticipantRegistrationFailed;
 
+                client.RouteRegistrationFailed -=
+                    OnRouteRegistrationFailed;
+
+                client.Dispose();
                 throw;
             }
         }
@@ -328,349 +294,108 @@ namespace MarcoZechner.CommandApi.Chat
             if (_registry != null)
                 _registry.Changed -= OnRegistryChanged;
 
-            ReleaseConnection();
+            RichHudChatApiClient client =
+                _client;
 
-            ApiDiscoveryConsumer consumer =
-                _consumer;
+            _client = null;
+            _participant = null;
+            _route = null;
+            _externalRoutes.Clear();
 
-            _consumer = null;
+            ResetDraftState();
 
-            if (consumer != null)
+            if (client != null)
             {
-                consumer.Connected -= OnConnected;
-                consumer.Disconnected -= OnDisconnected;
-                consumer.Dispose();
+                client.Connected -= OnConnected;
+                client.Disconnected -= OnDisconnected;
+                client.ParticipantRegistrationFailed -=
+                    OnParticipantRegistrationFailed;
+
+                client.RouteRegistrationFailed -=
+                    OnRouteRegistrationFailed;
+
+                client.Dispose();
             }
         }
 
-        private void OnConnected(
-            ApiConnectedEventArgs eventArgs
-        )
+        private void OnConnected()
         {
-            ReleaseConnection();
-            LastError = null;
+            LastError = ReadFacadeError();
+
+            if (!IsConnected)
+                return;
 
             try
             {
-                Connect(
-                    eventArgs.Connection
+                SynchronizeExternalRoutes();
+                WriteLine(
+                    "Ready. Use /cmd help."
                 );
+
+                LastError = null;
             }
             catch (Exception exception)
             {
                 LastError = exception.Message;
-                ReleaseConnection();
             }
         }
 
-        private void OnDisconnected(
-            ApiDisconnectedEventArgs eventArgs
-        )
+        private void OnDisconnected()
         {
-            ReleaseConnection();
+            ResetDraftState();
+            LastError = ReadFacadeError();
         }
 
-        private void Connect(
-            ApiConnection connection
+        private void OnParticipantRegistrationFailed(
+            ChatParticipantRegistration registration,
+            Exception exception
         )
         {
-            Func<
-                IDictionary<string, object>,
-                IDictionary<string, object>
-            > registerParticipant;
+            LastError =
+                exception == null
+                    ? "RichHudChatAPI participant registration failed."
+                    : exception.Message;
+        }
 
-            Func<
-                IDictionary<string, object>,
-                Action<string>,
-                Action<string>,
-                Action
-            > registerRoute;
+        private void OnRouteRegistrationFailed(
+            ChatRouteRegistration registration,
+            Exception exception
+        )
+        {
+            LastError =
+                exception == null
+                    ? "RichHudChatAPI route registration failed."
+                    : exception.Message;
+        }
 
-            Action<
-                IDictionary<string, object>
-            > appendTranscript;
-
-            Func<
-                IDictionary<string, object>,
-                bool
-            > setCompanion;
-
-            Func<
-                IDictionary<string, object>,
-                bool
-            > clearCompanion;
-
-            Func<
-                IDictionary<string, object>,
-                Action<string>,
-                Action
-            > registerRouteInteraction;
-
-            Func<
-                IDictionary<string, object>,
-                bool
-            > setInput;
+        private string ReadFacadeError()
+        {
+            Exception exception =
+                _route == null
+                    ? null
+                    : _route.LastError;
 
             if (
-                !connection.TryGetEndpoint(
-                    RegisterParticipantEndpoint,
-                    out registerParticipant
-                )
+                exception == null
+                && _participant != null
             )
             {
-                throw new InvalidOperationException(
-                    "RichHudChatAPI is missing RegisterParticipant."
-                );
+                exception =
+                    _participant.LastError;
             }
 
             if (
-                !connection.TryGetEndpoint(
-                    RegisterRouteEndpoint,
-                    out registerRoute
-                )
+                exception == null
+                && _client != null
             )
             {
-                throw new InvalidOperationException(
-                    "RichHudChatAPI is missing RegisterRoute."
-                );
+                exception =
+                    _client.LastError;
             }
 
-            if (
-                !connection.TryGetEndpoint(
-                    AppendTranscriptEndpoint,
-                    out appendTranscript
-                )
-            )
-            {
-                throw new InvalidOperationException(
-                    "RichHudChatAPI is missing AppendTranscript."
-                );
-            }
-
-            bool hasSetCompanion =
-                connection.TryGetEndpoint(
-                    SetCompanionEndpoint,
-                    out setCompanion
-                );
-
-            bool hasClearCompanion =
-                connection.TryGetEndpoint(
-                    ClearCompanionEndpoint,
-                    out clearCompanion
-                );
-
-            bool hasRouteInteraction =
-                connection.TryGetEndpoint(
-                    RegisterRouteInteractionEndpoint,
-                    out registerRouteInteraction
-                );
-
-            bool hasSetInput =
-                connection.TryGetEndpoint(
-                    SetInputEndpoint,
-                    out setInput
-                );
-
-            bool supportsCompanion =
-                _registry != null
-                && hasSetCompanion
-                && hasClearCompanion
-                && hasRouteInteraction
-                && hasSetInput;
-
-            bool supportsActivationPrefix =
-                supportsCompanion
-                && connection.Descriptor.Version
-                    >= new SemanticVersion(
-                        1,
-                        2,
-                        0
-                    );
-
-            bool supportsStyledCompanion =
-                supportsCompanion
-                && connection.Descriptor.Version
-                    >= new SemanticVersion(
-                        1,
-                        3,
-                        0
-                    );
-
-            IDictionary<string, object> registration =
-                registerParticipant(
-                    new Dictionary<string, object>(
-                        StringComparer.Ordinal
-                    )
-                    {
-                        {
-                            "OwnerId",
-                            OwnerId
-                        },
-                        {
-                            "DisplayName",
-                            DisplayName
-                        }
-                    }
-                );
-
-            string registrationId =
-                ReadRegistrationId(
-                    registration
-                );
-
-            Action unregisterParticipant =
-                ReadUnregisterAction(
-                    registration
-                );
-
-            Action unregisterRoute =
-                null;
-
-            Action unregisterRouteInteraction =
-                null;
-
-            Action<string> inputChanged =
-                null;
-
-            if (supportsCompanion)
-                inputChanged = OnInputChanged;
-
-            try
-            {
-                var routeMetadata =
-                    new Dictionary<string, object>(
-                        StringComparer.Ordinal
-                    )
-                    {
-                        {
-                            "RegistrationId",
-                            registrationId
-                        },
-                        {
-                            "RouteId",
-                            RouteId
-                        },
-                        {
-                            "Prefix",
-                            CommandInputParser.Prefix
-                        },
-                        {
-                            "IsDefault",
-                            false
-                        }
-                    };
-
-                if (supportsActivationPrefix)
-                {
-                    routeMetadata.Add(
-                        "ActivationPrefix",
-                        "/"
-                    );
-                }
-
-                unregisterRoute =
-                    registerRoute(
-                        routeMetadata,
-                        OnSubmittedInput,
-                        inputChanged
-                    );
-
-                if (unregisterRoute == null)
-                {
-                    throw new InvalidOperationException(
-                        "RichHudChatAPI returned no route registration."
-                    );
-                }
-
-                if (supportsCompanion)
-                {
-                    unregisterRouteInteraction =
-                        registerRouteInteraction(
-                            new Dictionary<string, object>(
-                                StringComparer.Ordinal
-                            )
-                            {
-                                {
-                                    "RegistrationId",
-                                    registrationId
-                                },
-                                {
-                                    "RouteId",
-                                    RouteId
-                                }
-                            },
-                            OnInteraction
-                        );
-
-                    if (unregisterRouteInteraction == null)
-                    {
-                        throw new InvalidOperationException(
-                            "RichHudChatAPI returned no interaction registration."
-                        );
-                    }
-                }
-            }
-            catch
-            {
-                TryInvoke(
-                    unregisterRouteInteraction
-                );
-
-                TryInvoke(
-                    unregisterRoute
-                );
-
-                TryInvoke(
-                    unregisterParticipant
-                );
-
-                throw;
-            }
-
-            _registrationId = registrationId;
-            _unregisterParticipant =
-                unregisterParticipant;
-
-            _unregisterRoute =
-                unregisterRoute;
-
-            _unregisterRouteInteraction =
-                unregisterRouteInteraction;
-
-            _registerRoute =
-                registerRoute;
-
-            _registerRouteInteraction =
-                supportsCompanion
-                    ? registerRouteInteraction
-                    : null;
-
-            _appendTranscript =
-                appendTranscript;
-
-            _setCompanion =
-                supportsCompanion
-                    ? setCompanion
-                    : null;
-
-            _clearCompanion =
-                supportsCompanion
-                    ? clearCompanion
-                    : null;
-
-            _setInput =
-                supportsCompanion
-                    ? setInput
-                    : null;
-
-            _supportsStyledCompanion =
-                supportsStyledCompanion;
-
-            SynchronizeExternalRoutes();
-
-            WriteLine(
-                "Ready. Use /cmd help."
-            );
+            return exception == null
+                ? null
+                : exception.Message;
         }
 
         private void OnRegistryChanged()
@@ -693,8 +418,8 @@ namespace MarcoZechner.CommandApi.Chat
         {
             if (
                 _registry == null
-                || _registerRoute == null
-                || _registrationId == null
+                || _participant == null
+                || _participant.IsDisposed
             )
             {
                 return;
@@ -760,9 +485,7 @@ namespace MarcoZechner.CommandApi.Chat
                 _externalRoutes.Remove(prefix);
 
                 TryClearCompanion(
-                    _clearCompanion,
-                    _registrationId,
-                    registration.RouteId
+                    registration.Route
                 );
 
                 registration.Release();
@@ -790,44 +513,34 @@ namespace MarcoZechner.CommandApi.Chat
                     routeId;
 
                 Action<string> inputChanged =
-                    null;
+                    delegate(string text)
+                    {
+                        OnInputChanged(
+                            capturedPrefix,
+                            capturedRouteId,
+                            text
+                        );
+                    };
 
-                if (_setCompanion != null)
-                {
-                    inputChanged =
-                        delegate(string text)
-                        {
-                            OnInputChanged(
-                                capturedPrefix,
-                                capturedRouteId,
-                                text
-                            );
-                        };
-                }
+                Action<string> interaction =
+                    delegate(string value)
+                    {
+                        OnInteraction(
+                            capturedPrefix,
+                            capturedRouteId,
+                            value
+                        );
+                    };
 
-                Action unregisterRoute =
-                    _registerRoute(
-                        new Dictionary<string, object>(
-                            StringComparer.Ordinal
-                        )
-                        {
-                            {
-                                "RegistrationId",
-                                _registrationId
-                            },
-                            {
-                                "RouteId",
-                                capturedRouteId
-                            },
-                            {
-                                "Prefix",
-                                capturedPrefix
-                            },
-                            {
-                                "IsDefault",
-                                false
-                            }
-                        },
+                ChatRouteHandle route =
+                    _participant.RegisterRoute(
+                        new ChatRouteRegistration(
+                            capturedRouteId,
+                            capturedPrefix,
+                            null,
+                            capturedPrefix
+                                + " commands."
+                        ),
                         delegate(string text)
                         {
                             OnSubmittedInput(
@@ -835,77 +548,16 @@ namespace MarcoZechner.CommandApi.Chat
                                 text
                             );
                         },
-                        inputChanged
+                        inputChanged,
+                        interaction
                     );
 
-                if (unregisterRoute == null)
-                {
-                    throw new InvalidOperationException(
-                        "RichHudChatAPI returned no route registration "
-                            + "for prefix "
-                            + capturedPrefix
-                            + "."
-                    );
-                }
-
-                Action unregisterInteraction =
-                    null;
-
-                try
-                {
-                    if (_registerRouteInteraction != null)
-                    {
-                        unregisterInteraction =
-                            _registerRouteInteraction(
-                                new Dictionary<string, object>(
-                                    StringComparer.Ordinal
-                                )
-                                {
-                                    {
-                                        "RegistrationId",
-                                        _registrationId
-                                    },
-                                    {
-                                        "RouteId",
-                                        capturedRouteId
-                                    }
-                                },
-                                delegate(string interaction)
-                                {
-                                    OnInteraction(
-                                        capturedPrefix,
-                                        capturedRouteId,
-                                        interaction
-                                    );
-                                }
-                            );
-
-                        if (unregisterInteraction == null)
-                        {
-                            throw new InvalidOperationException(
-                                "RichHudChatAPI returned no interaction "
-                                    + "registration for prefix "
-                                    + capturedPrefix
-                                    + "."
-                            );
-                        }
-                    }
-
-                    _externalRoutes.Add(
-                        capturedPrefix,
-                        new ExternalRouteRegistration(
-                            capturedRouteId,
-                            unregisterRoute,
-                            unregisterInteraction
-                        )
-                    );
-                }
-                catch
-                {
-                    TryInvoke(unregisterInteraction);
-                    TryInvoke(unregisterRoute);
-                    throw;
-                }
+                _externalRoutes.Add(
+                    capturedPrefix,
+                    new ExternalRouteRegistration(
+                        route
+                    )
+                );
             }
         }
 
@@ -930,7 +582,7 @@ namespace MarcoZechner.CommandApi.Chat
                 _disposed
                 || !IsConnected
                 || _registry == null
-                || _setCompanion == null
+                || FindRoute(routeId) == null
             )
             {
                 return;
@@ -1048,18 +700,6 @@ namespace MarcoZechner.CommandApi.Chat
                             + commandFragment
                             + "'."
                         : null;
-            }
-
-            if (
-                suggestions.Length == 0
-                && !_supportsStyledCompanion
-            )
-            {
-                ClearSuggestions(
-                    routeId
-                );
-
-                return;
             }
 
             PublishSuggestions();
@@ -1287,9 +927,7 @@ namespace MarcoZechner.CommandApi.Chat
         private void PublishSuggestions()
         {
             if (
-                _setCompanion == null
-                || _registrationId == null
-                || string.IsNullOrWhiteSpace(
+                string.IsNullOrWhiteSpace(
                     _draftPrefix
                 )
                 || string.IsNullOrWhiteSpace(
@@ -1300,16 +938,18 @@ namespace MarcoZechner.CommandApi.Chat
                 return;
             }
 
-            if (
-                _suggestions.Length == 0
-                && !_supportsStyledCompanion
-            )
-            {
+            ChatRouteHandle route =
+                FindRoute(
+                    _draftRouteId
+                );
+
+            if (route == null)
                 return;
-            }
 
             var items =
-                new object[_suggestions.Length];
+                new ChatCompanionItem[
+                    _suggestions.Length
+                ];
 
             for (
                 int index = 0;
@@ -1325,144 +965,75 @@ namespace MarcoZechner.CommandApi.Chat
                         + " "
                         + definition.CanonicalName;
 
-                var item =
-                    new Dictionary<string, object>(
-                        StringComparer.Ordinal
-                    )
-                    {
+                items[index] =
+                    new ChatCompanionItem(
+                        completionText,
+                        definition.ShortDescription,
+                        completionText,
+                        null,
+                        new[]
                         {
-                            "PrimaryText",
-                            _supportsStyledCompanion
-                                ? completionText
-                                : definition.CanonicalName
-                        },
-                        {
-                            "SecondaryText",
-                            definition.ShortDescription
-                        },
-                        {
-                            "CompletionText",
-                            completionText
-                        }
-                    };
-
-                if (_supportsStyledCompanion)
-                {
-                    item.Add(
-                        "PrimarySpans",
-                        new object[]
-                        {
-                            CreateSpan(
+                            new ChatTextSpan(
                                 0,
                                 _draftPrefix.Length,
-                                "Valid"
+                                ChatTextStyle.Valid
                             )
                         }
                     );
-                }
-
-                items[index] = item;
             }
 
-            var request =
-                new Dictionary<string, object>(
-                    StringComparer.Ordinal
-                )
-                {
-                    {
-                        "RegistrationId",
-                        _registrationId
-                    },
-                    {
-                        "RouteId",
-                        _draftRouteId
-                    },
-                    {
-                        "Items",
-                        items
-                    },
-                    {
-                        "SelectedIndex",
-                        _selectedSuggestionIndex
-                    }
-                };
+            string footer =
+                _suggestions.Length > 0
+                    ? "Up/Down selects | Tab completes"
+                    : string.Equals(
+                        _draftPrefix,
+                        CommandInputParser.Prefix,
+                        StringComparison.Ordinal
+                    )
+                        ? "Type /cmd help for command help."
+                        : "No matching commands under "
+                            + _draftPrefix
+                            + ".";
 
-            if (_supportsStyledCompanion)
-            {
-                request.Add(
-                    "HeaderText",
+            TrySetCompanion(
+                route,
+                new ChatCompanionState(
+                    items,
+                    _selectedSuggestionIndex,
                     _draftPrefix
-                        + " <command>"
-                );
-
-                request.Add(
-                    "HeaderSpans",
-                    new object[]
+                        + " <command>",
+                    new[]
                     {
-                        CreateSpan(
+                        new ChatTextSpan(
                             0,
                             _draftPrefix.Length,
-                            "Valid"
+                            ChatTextStyle.Valid
                         ),
-                        CreateSpan(
+                        new ChatTextSpan(
                             _draftPrefix.Length,
                             10,
-                            "Muted"
+                            ChatTextStyle.Muted
                         )
-                    }
-                );
-
-                request.Add(
-                    "Footer",
-                    _suggestions.Length > 0
-                        ? "Up/Down selects | Tab completes"
-                        : string.Equals(
-                            _draftPrefix,
-                            CommandInputParser.Prefix,
-                            StringComparison.Ordinal
-                        )
-                            ? "Type /cmd help for command help."
-                            : "No matching commands under "
-                                + _draftPrefix
-                                + "."
-                );
-
-                request.Add(
-                    "InputSpans",
+                    },
+                    footer,
+                    _draftErrorText,
                     BuildInputSpans()
-                );
-
-                if (
-                    !string.IsNullOrWhiteSpace(
-                        _draftErrorText
-                    )
                 )
-                {
-                    request.Add(
-                        "ErrorText",
-                        _draftErrorText
-                    );
-                }
-            }
-
-            TryRequest(
-                _setCompanion,
-                request
             );
         }
 
-        private object[] BuildInputSpans()
+        private ChatTextSpan[] BuildInputSpans()
         {
             var spans =
-                new List<object>();
+                new List<ChatTextSpan>();
 
             if (_draftPrefixLength > 0)
             {
                 spans.Add(
-                    CreateSpan(
+                    new ChatTextSpan(
                         0,
                         _draftPrefixLength,
-                        "Valid"
+                        ChatTextStyle.Valid
                     )
                 );
             }
@@ -1470,12 +1041,12 @@ namespace MarcoZechner.CommandApi.Chat
             if (_draftCommandLength > 0)
             {
                 spans.Add(
-                    CreateSpan(
+                    new ChatTextSpan(
                         _draftCommandStart,
                         _draftCommandLength,
                         _suggestions.Length > 0
-                            ? "Valid"
-                            : "Error"
+                            ? ChatTextStyle.Valid
+                            : ChatTextStyle.Error
                     )
                 );
             }
@@ -1483,38 +1054,10 @@ namespace MarcoZechner.CommandApi.Chat
             return spans.ToArray();
         }
 
-        private static IDictionary<string, object>
-            CreateSpan(
-                int start,
-                int length,
-                string style
-            )
-        {
-            return new Dictionary<string, object>(
-                StringComparer.Ordinal
-            )
-            {
-                {
-                    "Start",
-                    start
-                },
-                {
-                    "Length",
-                    length
-                },
-                {
-                    "Style",
-                    style
-                }
-            };
-        }
-
         private void CompleteSelectedSuggestion()
         {
             if (
-                _setInput == null
-                || _registrationId == null
-                || string.IsNullOrWhiteSpace(
+                string.IsNullOrWhiteSpace(
                     _draftPrefix
                 )
                 || string.IsNullOrWhiteSpace(
@@ -1527,32 +1070,24 @@ namespace MarcoZechner.CommandApi.Chat
                 return;
             }
 
+            ChatRouteHandle route =
+                FindRoute(
+                    _draftRouteId
+                );
+
+            if (route == null)
+                return;
+
             CommandDefinition definition =
                 _suggestions[
                     _selectedSuggestionIndex
                 ];
 
-            TryRequest(
-                _setInput,
-                new Dictionary<string, object>(
-                    StringComparer.Ordinal
-                )
-                {
-                    {
-                        "RegistrationId",
-                        _registrationId
-                    },
-                    {
-                        "RouteId",
-                        _draftRouteId
-                    },
-                    {
-                        "Input",
-                        _draftPrefix
-                            + " "
-                            + definition.CanonicalName
-                    }
-                }
+            TrySetInput(
+                route,
+                _draftPrefix
+                    + " "
+                    + definition.CanonicalName
             );
         }
 
@@ -1577,9 +1112,7 @@ namespace MarcoZechner.CommandApi.Chat
             _draftErrorText = null;
 
             TryClearCompanion(
-                _clearCompanion,
-                _registrationId,
-                routeId
+                FindRoute(routeId)
             );
         }
 
@@ -1662,92 +1195,134 @@ namespace MarcoZechner.CommandApi.Chat
             string message
         )
         {
-            Action<
-                IDictionary<string, object>
-            > appendTranscript =
-                _appendTranscript;
-
-            string registrationId =
-                _registrationId;
+            ChatParticipantHandle participant =
+                _participant;
 
             if (
-                appendTranscript == null
-                || registrationId == null
+                participant == null
+                || !participant.IsActive
+                || string.IsNullOrWhiteSpace(message)
             )
             {
                 return;
             }
 
-            appendTranscript(
-                new Dictionary<string, object>(
-                    StringComparer.Ordinal
-                )
-                {
-                    {
-                        "RegistrationId",
-                        registrationId
-                    },
-                    {
-                        "Author",
-                        DisplayName
-                    },
-                    {
-                        "Message",
-                        message ?? string.Empty
-                    }
-                }
-            );
+            try
+            {
+                participant.AppendTranscript(
+                    message,
+                    DisplayName
+                );
+            }
+            catch (Exception exception)
+            {
+                LastError = exception.Message;
+            }
         }
 
-        private void ReleaseConnection()
+        private ChatRouteHandle FindRoute(
+            string routeId
+        )
         {
-            Action unregisterRouteInteraction =
-                _unregisterRouteInteraction;
+            if (string.IsNullOrWhiteSpace(routeId))
+                return null;
 
-            Action unregisterRoute =
-                _unregisterRoute;
+            ChatRouteHandle route =
+                _route;
 
-            Action unregisterParticipant =
-                _unregisterParticipant;
+            if (
+                route != null
+                && !route.IsDisposed
+                && string.Equals(
+                    route.Registration.RouteId,
+                    routeId,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return route;
+            }
 
-            ExternalRouteRegistration[] externalRoutes =
-                new ExternalRouteRegistration[
-                    _externalRoutes.Count
-                ];
+            foreach (
+                ExternalRouteRegistration registration
+                in _externalRoutes.Values
+            )
+            {
+                route =
+                    registration.Route;
 
-            _externalRoutes.Values.CopyTo(
-                externalRoutes,
-                0
-            );
+                if (
+                    route != null
+                    && !route.IsDisposed
+                    && string.Equals(
+                        route.Registration.RouteId,
+                        routeId,
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    return route;
+                }
+            }
 
-            Func<
-                IDictionary<string, object>,
-                bool
-            > clearCompanion =
-                _clearCompanion;
+            return null;
+        }
 
-            string registrationId =
-                _registrationId;
+        private void TrySetCompanion(
+            ChatRouteHandle route,
+            ChatCompanionState state
+        )
+        {
+            if (route == null || route.IsDisposed)
+                return;
 
-            TryClearCompanion(
-                clearCompanion,
-                registrationId,
-                _draftRouteId
-            );
+            try
+            {
+                route.SetCompanion(state);
+            }
+            catch (Exception exception)
+            {
+                LastError = exception.Message;
+            }
+        }
 
-            _registrationId = null;
-            _appendTranscript = null;
-            _setCompanion = null;
-            _clearCompanion = null;
-            _setInput = null;
-            _registerRoute = null;
-            _registerRouteInteraction = null;
-            _unregisterRouteInteraction = null;
-            _unregisterRoute = null;
-            _unregisterParticipant = null;
+        private void TryClearCompanion(
+            ChatRouteHandle route
+        )
+        {
+            if (route == null || route.IsDisposed)
+                return;
 
-            _externalRoutes.Clear();
+            try
+            {
+                route.ClearCompanion();
+            }
+            catch (Exception exception)
+            {
+                LastError = exception.Message;
+            }
+        }
 
+        private void TrySetInput(
+            ChatRouteHandle route,
+            string input
+        )
+        {
+            if (route == null || route.IsDisposed)
+                return;
+
+            try
+            {
+                route.SetInput(input);
+            }
+            catch (Exception exception)
+            {
+                LastError = exception.Message;
+            }
+        }
+
+        private void ResetDraftState()
+        {
             _suggestions =
                 new CommandDefinition[0];
 
@@ -1763,221 +1338,43 @@ namespace MarcoZechner.CommandApi.Chat
             _draftCommandStart = 0;
             _draftCommandLength = 0;
             _draftErrorText = null;
-            _supportsStyledCompanion = false;
-
-            for (
-                int index = 0;
-                index < externalRoutes.Length;
-                index++
-            )
-            {
-                externalRoutes[index].Release();
-            }
-
-            TryInvoke(
-                unregisterRouteInteraction
-            );
-
-            TryInvoke(
-                unregisterRoute
-            );
-
-            TryInvoke(
-                unregisterParticipant
-            );
-        }
-
-        private static void TryClearCompanion(
-            Func<
-                IDictionary<string, object>,
-                bool
-            > clearCompanion,
-            string registrationId,
-            string routeId
-        )
-        {
-            if (
-                clearCompanion == null
-                || registrationId == null
-                || string.IsNullOrWhiteSpace(routeId)
-            )
-            {
-                return;
-            }
-
-            TryRequest(
-                clearCompanion,
-                new Dictionary<string, object>(
-                    StringComparer.Ordinal
-                )
-                {
-                    {
-                        "RegistrationId",
-                        registrationId
-                    },
-                    {
-                        "RouteId",
-                        routeId
-                    }
-                }
-            );
-        }
-
-        private static bool TryRequest(
-            Func<
-                IDictionary<string, object>,
-                bool
-            > endpoint,
-            IDictionary<string, object> request
-        )
-        {
-            if (endpoint == null)
-                return false;
-
-            try
-            {
-                return endpoint(request);
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        private static string ReadRegistrationId(
-            IDictionary<string, object> registration
-        )
-        {
-            if (registration == null)
-            {
-                throw new InvalidOperationException(
-                    "RichHudChatAPI returned no participant registration."
-                );
-            }
-
-            object value;
-
-            if (
-                !registration.TryGetValue(
-                    "RegistrationId",
-                    out value
-                )
-            )
-            {
-                throw new InvalidOperationException(
-                    "RichHudChatAPI returned no registration identifier."
-                );
-            }
-
-            string registrationId =
-                value as string;
-
-            if (string.IsNullOrWhiteSpace(registrationId))
-            {
-                throw new InvalidOperationException(
-                    "RichHudChatAPI returned an invalid registration identifier."
-                );
-            }
-
-            return registrationId;
-        }
-
-        private static Action ReadUnregisterAction(
-            IDictionary<string, object> registration
-        )
-        {
-            object value;
-
-            if (
-                !registration.TryGetValue(
-                    "Unregister",
-                    out value
-                )
-            )
-            {
-                throw new InvalidOperationException(
-                    "RichHudChatAPI returned no participant cleanup action."
-                );
-            }
-
-            Action unregister =
-                value as Action;
-
-            if (unregister == null)
-            {
-                throw new InvalidOperationException(
-                    "RichHudChatAPI returned an invalid participant cleanup action."
-                );
-            }
-
-            return unregister;
-        }
-
-        private static void TryInvoke(
-            Action action
-        )
-        {
-            if (action == null)
-                return;
-
-            try
-            {
-                action();
-            }
-            catch (Exception)
-            {
-            }
         }
 
         private sealed class ExternalRouteRegistration
         {
-            public string RouteId
+            public ChatRouteHandle Route
             {
                 get;
                 private set;
             }
 
-            private Action UnregisterRoute
-            {
-                get;
-                set;
-            }
-
-            private Action UnregisterInteraction
-            {
-                get;
-                set;
-            }
-
             public ExternalRouteRegistration(
-                string routeId,
-                Action unregisterRoute,
-                Action unregisterInteraction
+                ChatRouteHandle route
             )
             {
-                RouteId =
-                    routeId;
+                if (route == null)
+                    throw new ArgumentNullException(nameof(route));
 
-                UnregisterRoute =
-                    unregisterRoute;
-
-                UnregisterInteraction =
-                    unregisterInteraction;
+                Route = route;
             }
 
             public void Release()
             {
-                Action unregisterInteraction =
-                    UnregisterInteraction;
+                ChatRouteHandle route =
+                    Route;
 
-                Action unregisterRoute =
-                    UnregisterRoute;
+                Route = null;
 
-                UnregisterInteraction = null;
-                UnregisterRoute = null;
+                if (route == null)
+                    return;
 
-                TryInvoke(unregisterInteraction);
-                TryInvoke(unregisterRoute);
+                try
+                {
+                    route.Dispose();
+                }
+                catch (Exception)
+                {
+                }
             }
         }
 
