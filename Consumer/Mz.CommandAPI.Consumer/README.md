@@ -10,7 +10,9 @@ rediscovery, registration cleanup, and disposal.
 
 From the consuming mod root:
 
+```shell
     selibs add Mz.CommandAPI.Consumer
+```
 
 SELibs installs the facade as a direct package and resolves its exact
 `Mz.ApiProtocol` and `Mz.SemanticVersioning` dependencies transitively. The
@@ -21,6 +23,7 @@ consumer package does not install CommandAPI provider implementation code or
 
 Typical setup:
 
+```csharp
     var client = new CommandApiClient(
         new SpaceEngineersModMessageBus(),
         "Example.Mod",
@@ -47,6 +50,7 @@ Typical setup:
     );
 
     client.Start();
+```
 
 Dispose the client during mod unload. Logical registrations remain pending while
 CommandAPI is unavailable and are attached when a compatible provider appears.
