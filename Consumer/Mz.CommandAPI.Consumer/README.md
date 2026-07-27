@@ -6,6 +6,19 @@ API.
 The facade owns discovery, exact endpoint validation, typed payload conversion,
 rediscovery, registration cleanup, and disposal.
 
+## Install with SELibs
+
+From the consuming mod root:
+
+    selibs add Mz.CommandAPI.Consumer
+
+SELibs installs the facade as a direct package and resolves its exact
+`Mz.ApiProtocol` and `Mz.SemanticVersioning` dependencies transitively. The
+consumer package does not install CommandAPI provider implementation code or
+`Mz.Networking`.
+
+## Usage
+
 Typical setup:
 
     var client = new CommandApiClient(

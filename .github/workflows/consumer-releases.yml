@@ -1,0 +1,59 @@
+name: CommandAPI Consumer Releases
+
+on:
+  push:
+    tags:
+      - "release/Mz.CommandAPI.Consumer/*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: consumer-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release ${{ github.ref_name }}
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out tagged commit
+        uses: actions/checkout@v6
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Validate package format
+        shell: pwsh
+        run: |
+          & ".\.github\tests\New-ConsumerReleaseBundle.Tests.ps1"
+
+      - name: Test and create SELibs package
+        id: bundle
+        shell: pwsh
+        run: |
+          & ".\.github\scripts\New-ConsumerReleaseBundle.ps1" `
+              -Tag "${{ github.ref_name }}" `
+              -OutputDirectory "$env:RUNNER_TEMP\consumer-release"
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          & gh release create `
+              "${{ github.ref_name }}" `
+              "${{ steps.bundle.outputs.manifest_path }}" `
+              "${{ steps.bundle.outputs.component_path }}" `
+              --verify-tag `
+              --latest=false `
+              --title "${{ steps.bundle.outputs.release_title }}" `
+              --notes-file "${{ steps.bundle.outputs.release_notes_path }}"
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "GitHub release creation failed."
+          }
