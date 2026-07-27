@@ -115,6 +115,34 @@
                                                          "Mz.Networking.SpaceEngineers/Transport/SpaceEngineersNetworkTransport.cs":  "1ee259b695c6cc3b8541b7d6df4e58725e2ada21c9a7d6be5251d97a5ba58f35",
                                                          "Mz.Networking.SpaceEngineers/Wire/NetworkEnvelopeWire.cs":  "2b940038a45ed024456dece74c12de4b8f49665e1e68932e761eecf86f262ed3"
                                                      }
-                                       }
+                                       },
+                     "Mz.RichHudChatAPI.Consumer":  {
+                                                        "version":  "1.0.0",
+                                                        "direct":  true,
+                                                        "source":  {
+                                                                       "provider":  "github",
+                                                                       "repository":  "Marco-Zechner/SE-RichHudChatAPI",
+                                                                       "releasePrefix":  "release/Mz.RichHudChatAPI.Consumer/"
+                                                                   },
+                                                        "dependencies":  {
+                                                                             "Mz.ApiProtocol":  "0.2.2"
+                                                                         },
+                                                        "folders":  [
+                                                                        "Mz.RichHudChatAPI.Consumer"
+                                                                    ],
+                                                        "files":  {
+                                                                      "Mz.RichHudChatAPI.Consumer/ApiVersionFile.cs":  "568e2f0279bb3794f9e70527ac6323f7eff9bb365558109b4ad89be83c8bedc3",
+                                                                      "Mz.RichHudChatAPI.Consumer/ChatCompanionItem.cs":  "b485b2180190d914ace57e881b8fc35b011b7244240c8088d69b4a63e79c606c",
+                                                                      "Mz.RichHudChatAPI.Consumer/ChatCompanionState.cs":  "1d71cfb875c9f9b3e114045b4abea19d733e700608cbedf0efa1efb42d3ed7e8",
+                                                                      "Mz.RichHudChatAPI.Consumer/ChatParticipantHandle.cs":  "f6e32c58424a486fade3bd38d3d0e3d36ece7d6c269a30527ccdefa2d8b3b118",
+                                                                      "Mz.RichHudChatAPI.Consumer/ChatParticipantRegistration.cs":  "2b4c74155c13f42a0022e0770d690574425b9f7856eef547ec318931ddffd067",
+                                                                      "Mz.RichHudChatAPI.Consumer/ChatRouteHandle.cs":  "3973c8f4d1e640fd0b66d592a7fd07ae5bec52ed9fd967c9e6b0b89a259320d5",
+                                                                      "Mz.RichHudChatAPI.Consumer/ChatRouteRegistration.cs":  "22a890726502fae1e2041b5304746c4e551edcfbb51178cb78480494b4c3b97a",
+                                                                      "Mz.RichHudChatAPI.Consumer/ChatTextSpan.cs":  "3e010edfdba8c9eef1838fbcebdafc9e83aa2706a388aa261c955728aecefd0d",
+                                                                      "Mz.RichHudChatAPI.Consumer/ChatTextStyle.cs":  "c3439f4b51bd3fec02baeb74834cfb83edc6ef20e3dae7869ca4b1cbf5d6f114",
+                                                                      "Mz.RichHudChatAPI.Consumer/README.md":  "d452d84774ff48af4c50815d069205b8e2c94d93409609b6b560582f29d58296",
+                                                                      "Mz.RichHudChatAPI.Consumer/RichHudChatApiClient.cs":  "6bba69efb5067969d043a604d4d9e41729fa622f611702561fa40d6436d9ae3e"
+                                                                  }
+                                                    }
                  }
 }

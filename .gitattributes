@@ -4,3 +4,4 @@
 *.md text eol=lf
 *.json text eol=lf
 Data/Scripts/CommandAPI/RichHudFramework/** -whitespace
+Data/Scripts/CommandAPI/Libraries/** text eol=crlf
