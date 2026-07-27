@@ -6,4 +6,4 @@
 *.suo
 *.nupkg
 .agent/
-Data/Scripts/CommandAPI/RichHudFramework/
+/.selibs/

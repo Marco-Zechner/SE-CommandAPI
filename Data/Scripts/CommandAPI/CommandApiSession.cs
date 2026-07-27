@@ -1,49 +1,476 @@
-using RichHudFramework.Client;
+using System;
+using MarcoZechner.CommandApi.Api;
+using MarcoZechner.CommandApi.Chat;
+using MarcoZechner.CommandApi.Core;
+using MarcoZechner.CommandApi.Networking;
+using Mz.ApiProtocol.SpaceEngineers;
+using Mz.Networking.SpaceEngineers;
 using Sandbox.ModAPI;
-using VRage.Game;
 using VRage.Game.Components;
+using VRage.Utils;
 
 namespace MarcoZechner.CommandApi
 {
     [MySessionComponentDescriptor(MyUpdateOrder.NoUpdate)]
-    public sealed class CommandApiSession : MySessionComponentBase
+    public sealed class CommandApiSession :
+        MySessionComponentBase
     {
-        private const string ModDisplayName = "CommandAPI";
+        private const string ModDisplayName =
+            "CommandAPI";
 
-        private bool _richHudInitialized;
+        private const string ProtocolVersion =
+            "2.0.0";
 
-        public override void Init(MyObjectBuilder_SessionComponent sessionComponent)
+        // Low 16 bits of FNV-1a for
+        // "MarcoZechner.CommandAPI.Network.v1".
+        private const ushort NetworkChannelId =
+            31280;
+
+        private SpaceEngineersNetworkSession
+            _networkSession;
+
+        private CommandNetworkCoordinator
+            _networkCoordinator;
+
+        private CommandSubmissionDispatcher
+            _submissionDispatcher;
+
+        private CommandApiProvider
+            _apiProvider;
+
+        private SpaceEngineersVanillaChatInput
+            _chatInput;
+
+        private VanillaChatCommandAdapter
+            _chatAdapter;
+
+        private RichHudChatCommandAdapter
+            _richHudChatAdapter;
+
+        private string _networkState =
+            "Not initialized";
+
+        private string _presentationAdapter =
+            "None";
+
+        private bool _initialized;
+
+        public override void BeforeStart()
         {
-            RichHudClient.Init(
-                ModDisplayName,
-                OnRichHudInitialized,
-                OnRichHudReset
-            );
+            base.BeforeStart();
+
+            if (_initialized)
+                return;
+
+            if (
+                MyAPIGateway.Utilities == null
+                || MyAPIGateway.Multiplayer == null
+            )
+            {
+                return;
+            }
+
+            try
+            {
+                Initialize();
+            }
+            catch (Exception exception)
+            {
+                DisposeRuntime();
+
+                MyLog.Default.WriteLineAndConsole(
+                    ModDisplayName
+                        + " initialization failed: "
+                        + exception
+                );
+
+                if (
+                    MyAPIGateway.Utilities != null
+                    && !MyAPIGateway.Utilities.IsDedicated
+                )
+                {
+                    MyAPIGateway.Utilities.ShowMessage(
+                        ModDisplayName,
+                        "Initialization failed. See SpaceEngineers.log."
+                    );
+                }
+            }
         }
 
         protected override void UnloadData()
         {
-            OnRichHudReset();
+            DisposeRuntime();
             base.UnloadData();
         }
 
-        private void OnRichHudInitialized()
+        private void Initialize()
         {
-            if (_richHudInitialized)
+            var registry =
+                new CommandRegistry();
+
+            string errorMessage;
+
+            if (
+                !CommandBuiltIns.TryRegister(
+                    registry,
+                    BuildStatusSnapshot,
+                    out errorMessage
+                )
+            )
+            {
+                throw new InvalidOperationException(
+                    errorMessage
+                );
+            }
+
+            var executor =
+                new CommandExecutor(registry);
+
+            _networkSession =
+                new SpaceEngineersNetworkSession(
+                    NetworkChannelId,
+                    OnNetworkReceiveFailure
+                );
+
+            bool isServer =
+                _networkSession.Transport.IsServer;
+
+            ulong localPeerId =
+                _networkSession.Transport.LocalPeerId;
+
+            _networkState =
+                (
+                    isServer
+                        ? "Server"
+                        : "Client"
+                )
+                + " transport active on channel "
+                + NetworkChannelId;
+
+            _networkCoordinator =
+                new CommandNetworkCoordinator(
+                    _networkSession.Endpoint,
+                    executor,
+                    isServer,
+                    localPeerId,
+                    CreateExecutionContext,
+                    PresentNetworkResult
+                );
+
+            _apiProvider =
+                new CommandApiProvider(
+                    new SpaceEngineersModMessageBus(),
+                    registry
+                );
+
+            _apiProvider.Start();
+
+            bool isDedicated =
+                MyAPIGateway.Utilities.IsDedicated;
+
+            if (isDedicated)
+            {
+                _presentationAdapter =
+                    "Headless server";
+
+                _initialized = true;
+
+                MyLog.Default.WriteLineAndConsole(
+                    ModDisplayName
+                        + " ready as authoritative server on channel "
+                        + NetworkChannelId
+                        + "."
+                );
+
                 return;
+            }
 
-            _richHudInitialized = true;
+            _submissionDispatcher =
+                new CommandSubmissionDispatcher(
+                    registry,
+                    executor,
+                    CreateLocalExecutionContext,
+                    SubmitServerCommand,
+                    PresentLocalResult
+                );
 
-            MyAPIGateway.Utilities.ShowNotification(
-                "CommandAPI connected to Rich HUD Master.",
-                3000,
-                "White"
+            var input =
+                new SpaceEngineersVanillaChatInput();
+
+            _chatInput = input;
+
+            var output =
+                new SpaceEngineersVanillaChatOutput();
+
+            _chatAdapter =
+                new VanillaChatCommandAdapter(
+                    input,
+                    output,
+                    registry.GetPrefixes,
+                    SubmitCommand
+                );
+
+            TryStartRichHudChatAdapter(
+                localPeerId,
+                registry
+            );
+
+            _presentationAdapter =
+                "VanillaChat fallback";
+
+            _initialized = true;
+
+            RichHudChatCommandAdapter richHudAdapter =
+                _richHudChatAdapter;
+
+            if (
+                richHudAdapter == null
+                || !richHudAdapter.IsConnected
+            )
+            {
+                output.WriteLine(
+                    ModDisplayName,
+                    "Ready. Use /cmd help."
+                );
+            }
+        }
+
+        private void TryStartRichHudChatAdapter(
+            ulong localPeerId,
+            CommandRegistry registry
+        )
+        {
+            var adapter =
+                new RichHudChatCommandAdapter(
+                    new SpaceEngineersModMessageBus(),
+                    localPeerId,
+                    SubmitCommand,
+                    registry
+                );
+
+            _richHudChatAdapter =
+                adapter;
+
+            try
+            {
+                adapter.Start();
+            }
+            catch (Exception exception)
+            {
+                _richHudChatAdapter =
+                    null;
+
+                adapter.Dispose();
+
+                MyLog.Default.WriteLineAndConsole(
+                    ModDisplayName
+                        + " RichHudChatAPI integration unavailable: "
+                        + exception
+                );
+            }
+        }
+
+        private void SubmitCommand(
+            ulong senderId,
+            CommandInput input
+        )
+        {
+            CommandSubmissionDispatcher dispatcher =
+                _submissionDispatcher;
+
+            if (dispatcher == null)
+            {
+                throw new InvalidOperationException(
+                    "Command submission is unavailable."
+                );
+            }
+
+            dispatcher.Submit(
+                senderId,
+                Guid.NewGuid().ToString("N"),
+                input
             );
         }
 
-        private void OnRichHudReset()
+        private void SubmitServerCommand(
+            string requestId,
+            CommandInput input
+        )
         {
-            _richHudInitialized = false;
+            CommandNetworkCoordinator coordinator =
+                _networkCoordinator;
+
+            if (coordinator == null)
+            {
+                throw new InvalidOperationException(
+                    "Command networking is unavailable."
+                );
+            }
+
+            coordinator.SendRequest(
+                requestId,
+                input
+            );
+        }
+
+        private static CommandExecutionContext
+            CreateLocalExecutionContext(
+                ulong senderId,
+                string requestId
+            )
+        {
+            return SpaceEngineersExecutionContextProvider
+                .CreateLocal(
+                    senderId,
+                    requestId
+                );
+        }
+
+        private static CommandExecutionContext
+            CreateExecutionContext(
+                ulong senderId,
+                string requestId
+            )
+        {
+            return SpaceEngineersExecutionContextProvider
+                .Create(
+                    senderId,
+                    requestId
+                );
+        }
+
+        private void PresentLocalResult(
+            CommandResult result
+        )
+        {
+            if (result == null)
+                return;
+
+            RichHudChatCommandAdapter richHudAdapter =
+                _richHudChatAdapter;
+
+            if (
+                richHudAdapter != null
+                && richHudAdapter.PresentResult(result)
+            )
+            {
+                return;
+            }
+
+            VanillaChatCommandAdapter vanillaAdapter =
+                _chatAdapter;
+
+            if (vanillaAdapter == null)
+                return;
+
+            vanillaAdapter.PresentResult(result);
+        }
+
+        private void PresentNetworkResult(
+            CommandResultMessage message
+        )
+        {
+            if (message == null)
+                return;
+
+            PresentLocalResult(
+                new CommandResult(
+                    message.IsSuccess,
+                    message.Title,
+                    message.Summary,
+                    message.DetailLines,
+                    message.Severity,
+                    message.UsageHint
+                )
+            );
+        }
+
+        private void OnNetworkReceiveFailure(
+            SpaceEngineersNetworkReceiveFailure failure
+        )
+        {
+            MyLog.Default.WriteLineAndConsole(
+                ModDisplayName
+                    + " rejected a network packet on channel "
+                    + failure.ChannelId
+                    + " from peer "
+                    + failure.SenderPeerId
+                    + " ("
+                    + failure.SerializedMessage.Length
+                    + " bytes): "
+                    + failure.Exception
+            );
+        }
+
+        private CommandStatusSnapshot
+            BuildStatusSnapshot()
+        {
+            RichHudChatCommandAdapter adapter =
+                _richHudChatAdapter;
+
+            bool richHudChatAvailable =
+                adapter != null
+                && adapter.IsConnected;
+
+            string presentationAdapter =
+                richHudChatAvailable
+                    ? "RichHudChatAPI"
+                    : _presentationAdapter;
+
+            return new CommandStatusSnapshot(
+                ModVersionFile.VersionString,
+                ApiVersionFile.VersionString,
+                ProtocolVersion,
+                _networkState,
+                richHudChatAvailable,
+                presentationAdapter,
+                0
+            );
+        }
+
+        private void DisposeRuntime()
+        {
+            if (_apiProvider != null)
+            {
+                _apiProvider.Dispose();
+                _apiProvider = null;
+            }
+
+            if (_richHudChatAdapter != null)
+            {
+                _richHudChatAdapter.Dispose();
+                _richHudChatAdapter = null;
+            }
+
+            if (_chatAdapter != null)
+            {
+                _chatAdapter.Dispose();
+                _chatAdapter = null;
+            }
+
+            if (_chatInput != null)
+            {
+                _chatInput.Dispose();
+                _chatInput = null;
+            }
+
+            _submissionDispatcher = null;
+
+            if (_networkCoordinator != null)
+            {
+                _networkCoordinator.Dispose();
+                _networkCoordinator = null;
+            }
+
+            if (_networkSession != null)
+            {
+                _networkSession.Dispose();
+                _networkSession = null;
+            }
+
+            _networkState = "Not initialized";
+            _presentationAdapter = "None";
+            _initialized = false;
         }
     }
 }

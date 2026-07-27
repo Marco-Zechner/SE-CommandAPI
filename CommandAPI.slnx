@@ -2,4 +2,20 @@
   <Folder Name="/Data/">
     <Project Path="Data/CommandAPI.csproj" />
   </Folder>
+  <Folder Name="/SmokeMods/">
+    <Project Path="SmokeMods/CommandApiSmokeAlpha/CommandApiSmokeAlpha.csproj" />
+    <Project Path="SmokeMods/CommandApiSmokeBeta/CommandApiSmokeBeta.csproj" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="Tests/CommandAPI.Api.Tests/CommandAPI.Api.Tests.csproj" />
+    <Project Path="Tests/CommandAPI.Consumer.Tests/CommandAPI.Consumer.Tests.csproj" />
+    <Project Path="Tests/CommandAPI.BasicBuiltIns.Tests/CommandAPI.BasicBuiltIns.Tests.csproj" />
+    <Project Path="Tests/CommandAPI.BuiltIns.Tests/CommandAPI.BuiltIns.Tests.csproj" />
+    <Project Path="Tests/CommandAPI.Core.Tests/CommandAPI.Core.Tests.csproj" />
+    <Project Path="Tests/CommandAPI.Execution.Tests/CommandAPI.Execution.Tests.csproj" />
+    <Project Path="Tests/CommandAPI.Registry.Tests/CommandAPI.Registry.Tests.csproj" />
+    <Project Path="Tests/CommandAPI.NetworkProtocol.Tests/CommandAPI.NetworkProtocol.Tests.csproj" />
+    <Project Path="Tests/CommandAPI.NetworkCoordinator.Tests/CommandAPI.NetworkCoordinator.Tests.csproj" />
+    <Project Path="Tests/CommandAPI.VanillaChat.Tests/CommandAPI.VanillaChat.Tests.csproj" />
+  </Folder>
 </Solution>
