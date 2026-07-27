@@ -1,7 +1,6 @@
 using System;
-using System.Collections.Generic;
-using Mz.ApiProtocol;
 using Mz.ApiProtocol.SpaceEngineers;
+using Mz.CommandApi;
 using Mz.SemanticVersioning;
 using VRage.Utils;
 
@@ -10,15 +9,6 @@ namespace MarcoZechner.CommandApi.Smoke
     public sealed class CommandApiSmokeConsumer :
         IDisposable
     {
-        private const long DiscoveryChannelId =
-            ApiProtocolChannels.Discovery;
-
-        private const string CommandApiId =
-            "MarcoZechner.CommandAPI";
-
-        private const string RegisterCommandEndpoint =
-            "RegisterCommand";
-
         private const string Prefix =
             "/smoke";
 
@@ -30,9 +20,14 @@ namespace MarcoZechner.CommandApi.Smoke
         private readonly string _qualifiedCommandName;
         private readonly string _label;
 
-        private ApiDiscoveryConsumer _consumer;
-        private Action _qualifiedUnregister;
-        private Action _preferredUnregister;
+        private CommandApiClient _client;
+
+        private CommandRegistrationHandle
+            _qualifiedRegistration;
+
+        private CommandRegistrationHandle
+            _preferredRegistration;
+
         private bool _disposed;
 
         public CommandApiSmokeConsumer(
@@ -68,6 +63,7 @@ namespace MarcoZechner.CommandApi.Smoke
 
             _ownerId = ownerId.Trim();
             _displayName = displayName.Trim();
+
             _qualifiedCommandName =
                 qualifiedCommandName.Trim();
 
@@ -78,56 +74,63 @@ namespace MarcoZechner.CommandApi.Smoke
         {
             ThrowIfDisposed();
 
-            if (_consumer != null)
+            if (_client != null)
                 return;
 
-            var dependency =
-                new ApiDependencyDescriptor(
-                    new ApiModIdentity(
-                        _ownerId,
-                        _displayName,
-                        new SemanticVersion(
-                            1,
-                            0,
-                            0
-                        )
+            var client =
+                new CommandApiClient(
+                    new SpaceEngineersModMessageBus(),
+                    _ownerId,
+                    _displayName,
+                    new SemanticVersion(
+                        1,
+                        0,
+                        0
                     ),
-                    new ApiRequirement(
-                        CommandApiId,
-                        new ApiVersionRange(
-                            new SemanticVersion(
-                                1,
-                                0,
-                                0
-                            ),
-                            new SemanticVersion(
-                                2,
-                                0,
-                                0
-                            )
-                        )
-                    ),
-                    ApiDependencyKind.Required,
+                    true,
                     "Registers CommandAPI collision smoke-test commands."
                 );
 
-            _consumer =
-                new ApiDiscoveryConsumer(
-                    new SpaceEngineersModMessageBus(),
-                    dependency
+            client.Connected +=
+                OnConnected;
+
+            client.Disconnected +=
+                OnDisconnected;
+
+            client.RegistrationFailed +=
+                OnRegistrationFailed;
+
+            _client = client;
+
+            _qualifiedRegistration =
+                client.Register(
+                    CreateRegistration(
+                        _qualifiedCommandName,
+                        CommandExecutionLocation.Server,
+                        "Deterministic server command for "
+                            + _displayName
+                            + "."
+                    ),
+                    HandleCommand
                 );
 
-            _consumer.Connected += OnConnected;
-            _consumer.Disconnected += OnDisconnected;
-
-            _consumer.Start();
-            _consumer.RequestDiscovery();
+            _preferredRegistration =
+                client.Register(
+                    CreateRegistration(
+                        PreferredCommandName,
+                        CommandExecutionLocation.Client,
+                        "Load-order winner for the shared local smoke command."
+                    ),
+                    HandleCommand
+                );
 
             Log(
-                "waiting for "
-                + CommandApiId
-                + " 1.x."
+                "waiting for CommandAPI API "
+                + ApiVersionFile.MinimumProviderApiVersion
+                + " or newer."
             );
+
+            client.Start();
         }
 
         public void Dispose()
@@ -136,278 +139,172 @@ namespace MarcoZechner.CommandApi.Smoke
                 return;
 
             _disposed = true;
-            ReleaseRegistrations();
 
-            ApiDiscoveryConsumer consumer =
-                _consumer;
+            CommandApiClient client =
+                _client;
 
-            _consumer = null;
+            _client = null;
+            _qualifiedRegistration = null;
+            _preferredRegistration = null;
 
-            if (consumer != null)
-            {
-                consumer.Connected -= OnConnected;
-                consumer.Disconnected -= OnDisconnected;
-                consumer.Dispose();
-            }
+            if (client == null)
+                return;
+
+            client.Connected -=
+                OnConnected;
+
+            client.Disconnected -=
+                OnDisconnected;
+
+            client.RegistrationFailed -=
+                OnRegistrationFailed;
+
+            client.Dispose();
         }
 
-        private void OnConnected(
-            ApiConnectedEventArgs eventArgs
+        private CommandRegistration
+            CreateRegistration(
+                string canonicalName,
+                CommandExecutionLocation executionLocation,
+                string description
+            )
+        {
+            return new CommandRegistration(
+                Prefix,
+                canonicalName,
+                executionLocation,
+                new string[0],
+                description,
+                description
+                    + " It reports which smoke mod handled "
+                    + "the request.",
+                canonicalName,
+                "CommandAPI smoke tests",
+                0
+            );
+        }
+
+        private CommandResponse HandleCommand(
+            CommandRequest request
         )
         {
-            Func<
-                IDictionary<string, object>,
-                Func<
-                    IDictionary<string, object>,
-                    IDictionary<string, object>
-                >,
-                Action
-            > registerCommand;
+            return new CommandResponse(
+                true,
+                _label + " smoke command",
+                "Handled by "
+                    + _displayName
+                    + " through '"
+                    + request.CommandName
+                    + "'.",
+                new[]
+                {
+                    "OwnerId: " + _ownerId,
+                    "Qualified command: "
+                        + _qualifiedCommandName,
+                    "Requester: "
+                        + request.RequesterDisplayName
+                },
+                CommandSeverity.Success,
+                null
+            );
+        }
+
+        private void OnConnected()
+        {
+            CommandApiClient client =
+                _client;
+
+            if (client == null)
+                return;
+
+            Log(
+                "connected to CommandAPI mod "
+                + client.ProviderModVersion
+                + ", API "
+                + client.ProviderApiVersion
+                + "."
+            );
+
+            CommandRegistrationHandle qualified =
+                _qualifiedRegistration;
 
             if (
-                !eventArgs.Connection.TryGetEndpoint(
-                    RegisterCommandEndpoint,
-                    out registerCommand
-                )
+                qualified != null
+                && qualified.IsActive
             )
             {
                 Log(
-                    "provider is missing the exact "
-                    + RegisterCommandEndpoint
-                    + " endpoint."
-                );
-
-                return;
-            }
-
-            try
-            {
-                _qualifiedUnregister =
-                    registerCommand(
-                        CreateMetadata(
-                            _qualifiedCommandName,
-                            "Server",
-                            "Deterministic server command for "
-                                + _displayName
-                                + "."
-                        ),
-                        HandleCommand
-                    );
-
-                Log(
-                    "registered " + Prefix + " "
+                    "registered "
+                    + Prefix
+                    + " "
                     + _qualifiedCommandName
                     + "."
                 );
             }
-            catch (Exception exception)
+
+            CommandRegistrationHandle preferred =
+                _preferredRegistration;
+
+            if (
+                preferred != null
+                && preferred.IsActive
+            )
             {
                 Log(
-                    "qualified registration failed: "
+                    "won the shared local "
+                    + Prefix
+                    + " "
+                    + PreferredCommandName
+                    + " name."
+                );
+            }
+        }
+
+        private void OnDisconnected()
+        {
+            Log("CommandAPI disconnected.");
+        }
+
+        private void OnRegistrationFailed(
+            CommandRegistration registration,
+            Exception exception
+        )
+        {
+            if (
+                registration != null
+                && string.Equals(
+                    registration.CanonicalName,
+                    PreferredCommandName,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                Log(
+                    "shared "
+                    + Prefix
+                    + " "
+                    + PreferredCommandName
+                    + " is already owned; use "
+                    + Prefix
+                    + " "
+                    + _qualifiedCommandName
+                    + ". Provider said: "
                     + exception.Message
                 );
 
                 return;
             }
 
-            try
-            {
-                _preferredUnregister =
-                    registerCommand(
-                        CreateMetadata(
-                            PreferredCommandName,
-                            "Client",
-                            "Load-order winner for the shared local smoke command."
-                        ),
-                        HandleCommand
-                    );
-
-                Log(
-                    "won the shared local " + Prefix + " "
-                    + PreferredCommandName
-                    + " name."
-                );
-            }
-            catch (InvalidOperationException exception)
-            {
-                Log(
-                    "shared " + Prefix + " "
-                    + PreferredCommandName
-                    + " is already owned; use " + Prefix + " "
-                    + _qualifiedCommandName
-                    + ". Provider said: "
-                    + exception.Message
-                );
-            }
-        }
-
-        private void OnDisconnected(
-            ApiDisconnectedEventArgs eventArgs
-        )
-        {
-            ReleaseRegistrations();
-
             Log(
-                "CommandAPI disconnected: "
-                + eventArgs.Reason
-                + "."
-            );
-        }
-
-        private IDictionary<string, object>
-            CreateMetadata(
-                string canonicalName,
-                string executionLocation,
-                string description
-            )
-        {
-            return new Dictionary<string, object>(
-                StringComparer.Ordinal
-            )
-            {
-                {
-                    "OwnerId",
-                    _ownerId
-                },
-                {
-                    "Prefix",
-                    Prefix
-                },
-                {
-                    "ExecutionLocation",
-                    executionLocation
-                },
-                {
-                    "CanonicalName",
-                    canonicalName
-                },
-                {
-                    "ShortDescription",
-                    description
-                },
-                {
-                    "HelpText",
-                    description
-                        + " It reports which smoke mod handled "
-                        + "the request."
-                },
-                {
-                    "Usage",
-                    canonicalName
-                },
-                {
-                    "Category",
-                    "CommandAPI smoke tests"
-                },
-                {
-                    "PermissionRequirement",
-                    0
-                }
-            };
-        }
-
-        private IDictionary<string, object>
-            HandleCommand(
-                IDictionary<string, object> request
-            )
-        {
-            string commandName =
-                ReadString(
-                    request,
-                    "CommandName",
-                    "(unknown)"
-                );
-
-            string requester =
-                ReadString(
-                    request,
-                    "RequesterDisplayName",
-                    "(unknown)"
-                );
-
-            return new Dictionary<string, object>(
-                StringComparer.Ordinal
-            )
-            {
-                {
-                    "IsSuccess",
-                    true
-                },
-                {
-                    "Title",
-                    _label + " smoke command"
-                },
-                {
-                    "Summary",
-                    "Handled by "
-                        + _displayName
-                        + " through '"
-                        + commandName
-                        + "'."
-                },
-                {
-                    "DetailLines",
-                    new[]
-                    {
-                        "OwnerId: " + _ownerId,
-                        "Qualified command: "
-                            + _qualifiedCommandName,
-                        "Requester: " + requester
-                    }
-                },
-                {
-                    "Severity",
-                    "Success"
-                },
-                {
-                    "UsageHint",
-                    null
-                }
-            };
-        }
-
-        private void ReleaseRegistrations()
-        {
-            Action preferred =
-                _preferredUnregister;
-
-            _preferredUnregister = null;
-
-            if (preferred != null)
-                preferred();
-
-            Action qualified =
-                _qualifiedUnregister;
-
-            _qualifiedUnregister = null;
-
-            if (qualified != null)
-                qualified();
-        }
-
-        private static string ReadString(
-            IDictionary<string, object> values,
-            string key,
-            string fallback
-        )
-        {
-            object value;
-
-            if (
-                values != null
-                && values.TryGetValue(
-                    key,
-                    out value
+                "registration failed for "
+                + (
+                    registration == null
+                        ? "(unknown)"
+                        : registration.CanonicalName
                 )
-            )
-            {
-                string text = value as string;
-
-                if (!string.IsNullOrWhiteSpace(text))
-                    return text;
-            }
-
-            return fallback;
+                + ": "
+                + exception.Message
+            );
         }
 
         private void Log(string message)

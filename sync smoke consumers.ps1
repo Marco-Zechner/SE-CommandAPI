@@ -6,15 +6,42 @@ $sourceRoot =
 $modsRoot =
     Split-Path -Parent $sourceRoot
 
-$protocolSource =
-    Join-Path `
-        $sourceRoot `
-        "Data\Scripts\CommandAPI\Libraries\Mz.ApiProtocol"
-
 $commonSource =
     Join-Path `
         $sourceRoot `
         "SmokeMods\Common\CommandApiSmokeConsumer.cs"
+
+$sourceGroups =
+    @(
+        @{
+            Name = "Mz.CommandAPI.Consumer"
+            Source = Join-Path `
+                $sourceRoot `
+                "Consumer\Mz.CommandAPI.Consumer"
+            Target = "Libraries\Mz.CommandAPI.Consumer"
+        },
+        @{
+            Name = "Mz.ApiProtocol.Core"
+            Source = Join-Path `
+                $sourceRoot `
+                "Data\Scripts\CommandAPI\Libraries\Mz.ApiProtocol.Core"
+            Target = "Libraries\Mz.ApiProtocol.Core"
+        },
+        @{
+            Name = "Mz.ApiProtocol.SpaceEngineers"
+            Source = Join-Path `
+                $sourceRoot `
+                "Data\Scripts\CommandAPI\Libraries\Mz.ApiProtocol.SpaceEngineers"
+            Target = "Libraries\Mz.ApiProtocol.SpaceEngineers"
+        },
+        @{
+            Name = "Mz.SemanticVersioning"
+            Source = Join-Path `
+                $sourceRoot `
+                "Data\Scripts\CommandAPI\Libraries\Mz.SemanticVersioning"
+            Target = "Libraries\Mz.SemanticVersioning"
+        }
+    )
 
 $timestamp =
     Get-Date -Format "yyyyMMdd-HHmmss"
@@ -35,12 +62,19 @@ if ($gameProcesses.Count -gt 0) {
     throw "Close Space Engineers before syncing the smoke mods."
 }
 
-foreach ($required in @(
-    $protocolSource,
-    $commonSource
-)) {
-    if (-not (Test-Path -LiteralPath $required)) {
-        throw "Required source was not found: $required"
+if (-not (Test-Path -LiteralPath $commonSource -PathType Leaf)) {
+    throw "Required source was not found: $commonSource"
+}
+
+foreach ($group in $sourceGroups) {
+    if (
+        -not (
+            Test-Path `
+                -LiteralPath $group.Source `
+                -PathType Container
+        )
+    ) {
+        throw "Required source was not found: $($group.Source)"
     }
 }
 
@@ -109,14 +143,9 @@ foreach ($specification in $specifications) {
             $target `
             ("Data\Scripts\" + $name)
 
-    $protocolTarget =
-        Join-Path `
-            $scriptTarget `
-            "Libraries\Mz.ApiProtocol"
-
     New-Item `
         -ItemType Directory `
-        -Path $protocolTarget `
+        -Path $scriptTarget `
         -Force |
         Out-Null
 
@@ -136,35 +165,63 @@ foreach ($specification in $specifications) {
                 "CommandApiSmokeConsumer.cs"
         )
 
-    Copy-Item `
-        -Path (Join-Path $protocolSource "*") `
-        -Destination $protocolTarget `
-        -Recurse `
-        -Force
+    foreach ($group in $sourceGroups) {
+        $groupTarget =
+            Join-Path `
+                $scriptTarget `
+                $group.Target
 
-    $protocolCount =
-        @(
-            Get-ChildItem `
-                -LiteralPath $protocolTarget `
-                -Recurse `
-                -File `
-                -Filter "*.cs"
-        ).Count
+        New-Item `
+            -ItemType Directory `
+            -Path $groupTarget `
+            -Force |
+            Out-Null
 
-    if ($protocolCount -ne 36) {
-        throw "$name received $protocolCount protocol files instead of 36."
+        Copy-Item `
+            -Path (Join-Path $group.Source "*") `
+            -Destination $groupTarget `
+            -Recurse `
+            -Force
+
+        $sourceCount =
+            @(
+                Get-ChildItem `
+                    -LiteralPath $group.Source `
+                    -Recurse `
+                    -File `
+                    -Filter "*.cs"
+            ).Count
+
+        $targetCount =
+            @(
+                Get-ChildItem `
+                    -LiteralPath $groupTarget `
+                    -Recurse `
+                    -File `
+                    -Filter "*.cs"
+            ).Count
+
+        if ($targetCount -ne $sourceCount) {
+            throw (
+                "{0} received {1} {2} source files instead of {3}." -f
+                $name,
+                $targetCount,
+                $group.Name,
+                $sourceCount
+            )
+        }
     }
 
-    "Synchronized: $target"
+    Write-Output "Synchronized: $target"
 }
 
-""
-"Load these local mods with CommandAPI:"
-"- CommandApiSmokeAlpha"
-"- CommandApiSmokeBeta"
-""
-"Run:"
-"/cmd smoke"
-"/cmd smoke.alpha"
-"/cmd smoke.beta"
-"/cmd help"
+Write-Output ""
+Write-Output "Load these local mods with CommandAPI:"
+Write-Output "- CommandApiSmokeAlpha"
+Write-Output "- CommandApiSmokeBeta"
+Write-Output ""
+Write-Output "Run:"
+Write-Output "/smoke smoke"
+Write-Output "/smoke smoke.alpha"
+Write-Output "/smoke smoke.beta"
+Write-Output "/cmd help"

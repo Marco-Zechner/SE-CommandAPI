@@ -1,40 +1,42 @@
 <Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
-    <TargetFramework>net48</TargetFramework>
-    <Platforms>x64</Platforms>
-    <PlatformTarget>x64</PlatformTarget>
-    <LangVersion>6</LangVersion>
-    <RootNamespace>MarcoZechner.CommandApi.Smoke.Beta</RootNamespace>
-    <AssemblyName>CommandApiSmokeBeta</AssemblyName>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>12</LangVersion>
+
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>disable</Nullable>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <GenerateNeutralResourcesLanguageAttribute>false</GenerateNeutralResourcesLanguageAttribute>
-    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <IsPublishable>false</IsPublishable>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Mal.Mdk2.ModAnalyzers" Version="*" />
-    <PackageReference Include="Mal.Mdk2.References" Version="*" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+      <IncludeAssets>
+        runtime; build; native; contentfiles; analyzers; buildtransitive
+      </IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
     <Compile
-      Include="..\Common\CommandApiSmokeConsumer.cs"
-      Link="Shared\CommandApiSmokeConsumer.cs" />
-    <Compile
       Include="..\..\Consumer\Mz.CommandAPI.Consumer\**\*.cs"
-      Link="Libraries\Mz.CommandAPI.Consumer\%(RecursiveDir)%(Filename)%(Extension)" />
+      Link="Consumer\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile
       Include="..\..\Data\Scripts\CommandAPI\Libraries\Mz.ApiProtocol.Core\**\*.cs"
       Link="Libraries\Mz.ApiProtocol.Core\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile
       Include="..\..\Data\Scripts\CommandAPI\Libraries\Mz.ApiProtocol.SpaceEngineers\**\*.cs"
+      Exclude="..\..\Data\Scripts\CommandAPI\Libraries\Mz.ApiProtocol.SpaceEngineers\Messaging\SpaceEngineersModMessageBus.cs"
       Link="Libraries\Mz.ApiProtocol.SpaceEngineers\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile
       Include="..\..\Data\Scripts\CommandAPI\Libraries\Mz.SemanticVersioning\**\*.cs"
       Link="Libraries\Mz.SemanticVersioning\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
+
 </Project>
