@@ -28,13 +28,7 @@ namespace Mz.Networking
         /// <summary>
         /// Gets a copy of the application-defined message payload.
         /// </summary>
-        public byte[] Payload
-        {
-            get
-            {
-                return CopyPayload(_payload);
-            }
-        }
+        public byte[] Payload => CopyPayload(_payload);
 
         /// <summary>
         /// Creates a network-message envelope.
@@ -51,20 +45,10 @@ namespace Mz.Networking
         /// <param name="payload">
         /// The application-defined payload.
         /// </param>
-        public NetworkEnvelope(
-            string messageType,
-            ulong originalSenderId,
-            bool isRelay,
-            byte[] payload
-        )
+        public NetworkEnvelope(string messageType, ulong originalSenderId, bool isRelay, byte[] payload)
         {
             if (string.IsNullOrWhiteSpace(messageType))
-            {
-                throw new ArgumentException(
-                    "A message type is required.",
-                    nameof(messageType)
-                );
-            }
+                throw new ArgumentException("A message type is required.", nameof(messageType));
 
             if (payload == null)
                 throw new ArgumentNullException(nameof(payload));
@@ -75,38 +59,16 @@ namespace Mz.Networking
             _payload = CopyPayload(payload);
         }
 
-        internal NetworkEnvelope WithOriginalSenderId(
-            ulong originalSenderId
-        )
-        {
-            return new NetworkEnvelope(
-                MessageType,
-                originalSenderId,
-                IsRelay,
-                _payload
-            );
-        }
+        internal NetworkEnvelope WithOriginalSenderId(ulong originalSenderId) 
+            => new NetworkEnvelope(MessageType, originalSenderId, IsRelay, _payload);
 
-        internal NetworkEnvelope WithRelay(bool isRelay)
-        {
-            return new NetworkEnvelope(
-                MessageType,
-                OriginalSenderId,
-                isRelay,
-                _payload
-            );
-        }
+        internal NetworkEnvelope WithRelay(bool isRelay) 
+            => new NetworkEnvelope(MessageType, OriginalSenderId, isRelay, _payload);
 
         private static byte[] CopyPayload(byte[] payload)
         {
             var copy = new byte[payload.Length];
-
-            Array.Copy(
-                payload,
-                copy,
-                payload.Length
-            );
-
+            Array.Copy(payload, copy, payload.Length);
             return copy;
         }
     }
