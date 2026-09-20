@@ -26,7 +26,8 @@ namespace MarcoZechner.CommandApi.Core
                 "help",
                 "ping",
                 "whoami",
-                "status"
+                "status",
+                "mods"
             };
 
             CommandDefinition existing;
@@ -127,12 +128,26 @@ namespace MarcoZechner.CommandApi.Core
                     }
                 );
 
+            var mods = new CommandDefinition(
+                "mods",
+                new string[0],
+                "Lists mods with registered commands.",
+                "Lists CommandAPI and external mods that currently own one or more registered commands.",
+                "mods [page]",
+                "CommandAPI",
+                CommandExecutionLocation.Either,
+                0,
+                OwnerId,
+                delegate(CommandExecutionContext context, CommandInput input) { return BuildModsResult(registry, input); }
+            );
+
             CommandDefinition[] definitions =
             {
                 help,
                 ping,
                 whoami,
-                status
+                status,
+                mods
             };
 
             for (
@@ -352,6 +367,54 @@ namespace MarcoZechner.CommandApi.Core
             );
         }
 
+        private static CommandResult BuildModsResult(CommandRegistry registry, CommandInput input)
+        {
+            const int pageSize = 8;
+
+            if (input.Arguments.Length > 1)
+                return Failure("Invalid mods request", "Mods accepts at most one page number.", "/cmd mods [page]");
+
+            int page = 1;
+            if (input.Arguments.Length == 1 && (!int.TryParse(input.Arguments[0], out page) || page < 1))
+                return Failure("Invalid mods request", "Page must be a positive whole number.", "/cmd mods [page]");
+
+            CommandDefinition[] definitions = registry.GetDefinitions();
+            var commandCountsByOwner = new Dictionary<string, int>(StringComparer.Ordinal);
+
+            for (int index = 0; index < definitions.Length; index++)
+            {
+                string ownerId = definitions[index].OwnerId;
+                int count;
+                commandCountsByOwner[ownerId] = commandCountsByOwner.TryGetValue(ownerId, out count) ? count + 1 : 1;
+            }
+
+            var owners = new List<string>(commandCountsByOwner.Keys);
+            owners.Sort(StringComparer.Ordinal);
+
+            int pageCount = Math.Max(1, (owners.Count + pageSize - 1) / pageSize);
+            if (page > pageCount)
+                return Failure("Invalid mods page", "Page " + page + " does not exist. Available pages: 1-" + pageCount + ".", "/cmd mods [page]");
+
+            int firstIndex = (page - 1) * pageSize;
+            int lineCount = Math.Min(pageSize, owners.Count - firstIndex);
+            var lines = new string[lineCount];
+
+            for (int index = 0; index < lineCount; index++)
+            {
+                string ownerId = owners[firstIndex + index];
+                int commandCount = commandCountsByOwner[ownerId];
+                lines[index] = ownerId + " - " + commandCount + (commandCount == 1 ? " command" : " commands");
+            }
+
+            return new CommandResult(
+                true,
+                "Registered mods",
+                "Mods with registered commands: " + owners.Count + ". Page " + page + "/" + pageCount + ".",
+                lines,
+                CommandSeverity.Information,
+                page < pageCount ? "/cmd mods " + (page + 1) : null
+            );
+        }
         private static CommandResult BuildStatusResult(
             CommandRegistry registry,
             CommandStatusProvider statusProvider,
