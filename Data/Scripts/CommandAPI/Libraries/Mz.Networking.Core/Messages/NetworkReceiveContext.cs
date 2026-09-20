@@ -46,19 +46,19 @@ namespace Mz.Networking
         public NetworkRelayMode RelayMode { get; set; }
 
         /// <summary>
+        /// Gets or sets the delivery guarantees used for a server relay.
+        /// </summary>
+        public NetworkDeliveryMode RelayDeliveryMode { get; set; }
+
+        /// <summary>
         /// Gets or sets whether the envelope must be serialized again before
         /// it is sent onward.
         /// </summary>
         public bool RequiresSerialization { get; set; }
 
         internal NetworkReceiveContext(
-            NetworkEnvelope envelope,
-            ulong transportSenderId,
-            bool isServer,
-            bool transportSenderIsServer,
-            bool originalSenderWasCorrected,
-            bool relayFlagWasCorrected
-        )
+            NetworkEnvelope envelope, ulong transportSenderId, bool isServer, bool transportSenderIsServer, 
+            bool originalSenderWasCorrected, bool relayFlagWasCorrected)
         {
             if (envelope == null)
                 throw new ArgumentNullException(nameof(envelope));
@@ -67,16 +67,13 @@ namespace Mz.Networking
             TransportSenderId = transportSenderId;
             IsServer = isServer;
             TransportSenderIsServer = transportSenderIsServer;
-            OriginalSenderWasCorrected =
-                originalSenderWasCorrected;
+            OriginalSenderWasCorrected = originalSenderWasCorrected;
 
-            RelayFlagWasCorrected =
-                relayFlagWasCorrected;
+            RelayFlagWasCorrected = relayFlagWasCorrected;
 
             RelayMode = NetworkRelayMode.None;
-            RequiresSerialization =
-                originalSenderWasCorrected
-                || relayFlagWasCorrected;
+            RelayDeliveryMode = NetworkDeliveryMode.Reliable;
+            RequiresSerialization = originalSenderWasCorrected || relayFlagWasCorrected;
         }
     }
 }

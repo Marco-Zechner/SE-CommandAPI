@@ -22,18 +22,12 @@ namespace Mz.Networking.SpaceEngineers
         /// <summary>
         /// Registers a secure multiplayer message handler.
         /// </summary>
-        void RegisterSecureMessageHandler(
-            ushort channelId,
-            Action<ushort, byte[], ulong, bool> handler
-        );
+        void RegisterSecureMessageHandler(ushort channelId, Action<ushort, byte[], ulong, bool> handler);
 
         /// <summary>
         /// Removes an exact secure multiplayer message handler registration.
         /// </summary>
-        void UnregisterSecureMessageHandler(
-            ushort channelId,
-            Action<ushort, byte[], ulong, bool> handler
-        );
+        void UnregisterSecureMessageHandler(ushort channelId, Action<ushort, byte[], ulong, bool> handler);
 
         /// <summary>
         /// Serializes a transport-independent network envelope.
@@ -48,19 +42,12 @@ namespace Mz.Networking.SpaceEngineers
         /// <summary>
         /// Sends serialized data to the authoritative server.
         /// </summary>
-        bool SendToServer(
-            ushort channelId,
-            byte[] serialized
-        );
+        bool SendToServer(ushort channelId, byte[] serialized);
 
         /// <summary>
         /// Sends serialized data to one multiplayer peer.
         /// </summary>
-        bool SendToPeer(
-            ushort channelId,
-            byte[] serialized,
-            ulong peerId
-        );
+        bool SendToPeer(ushort channelId, byte[] serialized, ulong peerId);
 
         /// <summary>
         /// Appends the currently connected player peer identities.

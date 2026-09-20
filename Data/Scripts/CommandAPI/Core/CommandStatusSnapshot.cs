@@ -12,52 +12,31 @@ namespace MarcoZechner.CommandApi.Core
 
         public string NetworkState { get; }
 
-        public bool RichHudChatAvailable { get; }
-
         public string PresentationAdapter { get; }
 
         public int ExternalProviderCount { get; }
 
-        public CommandStatusSnapshot(
-            string modVersion,
-            string apiVersion,
-            string protocolVersion,
-            string networkState,
-            bool richHudChatAvailable,
-            string presentationAdapter,
-            int externalProviderCount
-        )
+        public CommandStatusSnapshot(string modVersion, string apiVersion, string protocolVersion, string networkState, string presentationAdapter, int externalProviderCount)
         {
             if (modVersion == null)
-                throw new ArgumentNullException(
-                    nameof(modVersion)
-                );
+                throw new ArgumentNullException(nameof(modVersion));
 
             if (apiVersion == null)
-                throw new ArgumentNullException(
-                    nameof(apiVersion)
-                );
+                throw new ArgumentNullException(nameof(apiVersion));
 
             if (protocolVersion == null)
-                throw new ArgumentNullException(
-                    nameof(protocolVersion)
-                );
+                throw new ArgumentNullException(nameof(protocolVersion));
 
             if (networkState == null)
-                throw new ArgumentNullException(
-                    nameof(networkState)
-                );
+                throw new ArgumentNullException(nameof(networkState));
 
             if (presentationAdapter == null)
-                throw new ArgumentNullException(
-                    nameof(presentationAdapter)
-                );
+                throw new ArgumentNullException(nameof(presentationAdapter));
 
             ModVersion = modVersion;
             ApiVersion = apiVersion;
             ProtocolVersion = protocolVersion;
             NetworkState = networkState;
-            RichHudChatAvailable = richHudChatAvailable;
             PresentationAdapter = presentationAdapter;
             ExternalProviderCount = externalProviderCount;
         }

@@ -24,18 +24,12 @@ namespace Mz.Networking
         /// <summary>
         /// Sends an envelope to one peer.
         /// </summary>
-        void SendToPeer(
-            NetworkEnvelope envelope,
-            ulong peerId
-        );
+        void SendToPeer(NetworkEnvelope envelope, ulong peerId);
 
         /// <summary>
         /// Sends an envelope to all peers except one.
         /// </summary>
-        void SendToOthers(
-            NetworkEnvelope envelope,
-            ulong excludedPeerId
-        );
+        void SendToOthers(NetworkEnvelope envelope, ulong excludedPeerId);
 
         /// <summary>
         /// Sends an envelope to all peers.

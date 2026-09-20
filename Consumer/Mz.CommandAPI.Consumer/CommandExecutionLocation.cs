@@ -8,6 +8,10 @@ namespace Mz.CommandApi
         Client,
         Server,
         Either,
+
+        /// <summary>
+        /// Reserved for CommandAPI implementation use and unavailable to public registrations.
+        /// </summary>
         Internal
     }
 }

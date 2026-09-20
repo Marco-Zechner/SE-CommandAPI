@@ -126,7 +126,7 @@ namespace MarcoZechner.CommandApi.Tests
             );
 
             Equal(
-                "Available commands: 4",
+                "Available commands: 5",
                 result.Summary,
                 "summary"
             );
@@ -137,7 +137,38 @@ namespace MarcoZechner.CommandApi.Tests
                     "help - Lists available commands.",
                     "ping - Tests CommandAPI request execution.",
                     "whoami - Reports your server-derived identity.",
-                    "status - Reports CommandAPI status."
+                    "status - Reports CommandAPI status.",
+                    "mods - Lists mods with registered commands."
+                },
+                result.DetailLines,
+                "detail lines"
+            );
+        }
+
+        [Fact]
+        public void ClientHelpListsCommandsThatCanBeSubmittedFromClient()
+        {
+            var registry = new CommandRegistry();
+
+            Register(registry, Definition("admin", new string[0], 3, CommandExecutionLocation.Server));
+            Register(registry, Definition("clientonly", new string[0], 0, CommandExecutionLocation.Client));
+            Register(registry, Definition("internal", new string[0], 0, CommandExecutionLocation.Internal));
+            RegisterBuiltIns(registry);
+
+            var executor = new CommandExecutor(registry);
+            CommandResult result = executor.Execute(ClientContext(0), new CommandInput("help", new string[0]));
+
+            True(result.IsSuccess, "Help command failed.");
+            Equal("Available commands: 6", result.Summary, "summary");
+            SequenceEqual(
+                new[]
+                {
+                    "clientonly - clientonly description",
+                    "help - Lists available commands.",
+                    "ping - Tests CommandAPI request execution.",
+                    "whoami - Reports your server-derived identity.",
+                    "status - Reports CommandAPI status.",
+                    "mods - Lists mods with registered commands."
                 },
                 result.DetailLines,
                 "detail lines"
@@ -211,6 +242,98 @@ namespace MarcoZechner.CommandApi.Tests
         }
 
         [Fact]
+        public void ModsListsDistinctOwnersAndLiveCommandCounts()
+        {
+            var registry = new CommandRegistry();
+            Register(registry, Definition("alpha", new string[0], 0, CommandExecutionLocation.Client, "Example.One"));
+            Register(registry, Definition("beta", new string[0], 0, CommandExecutionLocation.Server, "Example.One"));
+            Register(registry, Definition("gamma", new string[0], 0, CommandExecutionLocation.Server, "Example.Two"));
+            RegisterBuiltIns(registry);
+
+            var executor = new CommandExecutor(registry);
+            CommandResult result = executor.Execute(ClientContext(0), new CommandInput("mods", new string[0]));
+
+            True(result.IsSuccess, "Mods command failed.");
+            Equal("Registered mods", result.Title, "title");
+            Equal("Mods with registered commands: 3. Page 1/1.", result.Summary, "summary");
+            SequenceEqual(
+                new[]
+                {
+                    "CommandAPI [/cmd] - 5 commands",
+                    "Example.One [/cmd] - 2 commands",
+                    "Example.Two [/cmd] - 1 command"
+                },
+                result.DetailLines,
+                "detail lines"
+            );
+        }
+        [Fact]
+        public void ModsListsAllPrefixesOwnedByMod()
+        {
+            var registry = new CommandRegistry();
+            Register(registry, "/alpha", Definition("one", new string[0], 0, CommandExecutionLocation.Client, "Example.Mod"));
+            Register(registry, "/beta", Definition("two", new string[0], 0, CommandExecutionLocation.Client, "Example.Mod"));
+            RegisterBuiltIns(registry);
+
+            var executor = new CommandExecutor(registry);
+            CommandResult result = executor.Execute(ClientContext(0), new CommandInput("mods", new string[0]));
+
+            True(result.IsSuccess, "Mods command failed.");
+            SequenceEqual(
+                new[]
+                {
+                    "CommandAPI [/cmd] - 5 commands",
+                    "Example.Mod [/alpha, /beta] - 2 commands"
+                },
+                result.DetailLines,
+                "detail lines"
+            );
+        }
+        [Fact]
+        public void ModsPagesLongProviderListsWithoutExceedingVanillaDetailLimit()
+        {
+            var registry = new CommandRegistry();
+
+            for (int index = 1; index <= 9; index++)
+                Register(registry, Definition("command" + index, new string[0], 0, CommandExecutionLocation.Client, "Example." + index.ToString("00")));
+
+            RegisterBuiltIns(registry);
+
+            var executor = new CommandExecutor(registry);
+            CommandResult first = executor.Execute(ClientContext(0), new CommandInput("mods", new string[0]));
+            CommandResult second = executor.Execute(ClientContext(0), new CommandInput("mods", new[] { "2" }));
+
+            True(first.IsSuccess, "First mods page failed.");
+            Equal("Mods with registered commands: 10. Page 1/2.", first.Summary, "first summary");
+            Equal(8, first.DetailLines.Length, "first page detail count");
+            Equal("CommandAPI [/cmd] - 5 commands", first.DetailLines[0], "first page first line");
+            Equal("Example.07 [/cmd] - 1 command", first.DetailLines[7], "first page last line");
+            Equal("/cmd mods 2", first.UsageHint, "first page next-page hint");
+
+            True(second.IsSuccess, "Second mods page failed.");
+            Equal("Mods with registered commands: 10. Page 2/2.", second.Summary, "second summary");
+            SequenceEqual(new[] { "Example.08 [/cmd] - 1 command", "Example.09 [/cmd] - 1 command" }, second.DetailLines, "second page");
+            Equal<string>(null, second.UsageHint, "second page next-page hint");
+        }
+
+        [Fact]
+        public void ModsRejectsInvalidPage()
+        {
+            var registry = new CommandRegistry();
+            RegisterBuiltIns(registry);
+
+            var executor = new CommandExecutor(registry);
+            CommandResult zero = executor.Execute(ClientContext(0), new CommandInput("mods", new[] { "0" }));
+            CommandResult missing = executor.Execute(ClientContext(0), new CommandInput("mods", new[] { "2" }));
+            CommandResult extra = executor.Execute(ClientContext(0), new CommandInput("mods", new[] { "1", "2" }));
+
+            True(!zero.IsSuccess, "Page zero unexpectedly succeeded.");
+            Equal("/cmd mods [page]", zero.UsageHint, "page zero usage");
+            True(!missing.IsSuccess, "Out-of-range page unexpectedly succeeded.");
+            Equal("Invalid mods page", missing.Title, "out-of-range title");
+            True(!extra.IsSuccess, "Multiple page arguments unexpectedly succeeded.");
+        }
+        [Fact]
         public void StatusUsesLiveRegistryCountAndProviderSnapshot()
         {
             var registry =
@@ -258,9 +381,8 @@ namespace MarcoZechner.CommandApi.Tests
                     "CommandAPI mod version: 0.1.0",
                     "CommandAPI API version: 1.2.0",
                     "Protocol version: 1.0.0",
-                    "Registered commands: 5",
+                    "Registered commands: 6",
                     "Network: Not initialized",
-                    "RichHudChat: unavailable",
                     "Presentation: VanillaChat",
                     "External providers: 0"
                 },
@@ -285,7 +407,6 @@ namespace MarcoZechner.CommandApi.Tests
                             "1.2.0",
                             "1.0.0",
                             "Not initialized",
-                            false,
                             "VanillaChat",
                             0
                         );
@@ -300,7 +421,8 @@ namespace MarcoZechner.CommandApi.Tests
             string canonicalName,
             string[] aliases,
             int permissionRequirement,
-            CommandExecutionLocation location
+            CommandExecutionLocation location,
+            string ownerId = "CommandAPI.Tests"
         )
         {
             return new CommandDefinition(
@@ -312,7 +434,7 @@ namespace MarcoZechner.CommandApi.Tests
                 "Tests",
                 location,
                 permissionRequirement,
-                "CommandAPI.Tests",
+                ownerId,
                 NoOpHandler
             );
         }
@@ -331,6 +453,17 @@ namespace MarcoZechner.CommandApi.Tests
                 ),
                 errorMessage
             );
+        }
+
+        private static void Register(CommandRegistry registry, string prefix, CommandDefinition definition)
+        {
+            string errorMessage;
+            True(registry.TryRegister(prefix, definition, out errorMessage), errorMessage);
+        }
+
+        private static CommandExecutionContext ClientContext(int permissionLevel)
+        {
+            return new CommandExecutionContext("request-builtins", 76561198000000042UL, 42L, "Client Player", permissionLevel, false);
         }
 
         private static CommandExecutionContext ServerContext(

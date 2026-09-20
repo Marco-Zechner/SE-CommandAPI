@@ -650,6 +650,38 @@ namespace MarcoZechner.CommandApi.Tests
         }
 
         [Fact]
+        public void RejectInternalCommandBeforeHandler()
+        {
+            bool handlerCalled = false;
+            var registry = new CommandRegistry();
+            string registrationError;
+
+            True(
+                registry.TryRegister(
+                    CreateDefinition(
+                        "internal",
+                        CommandExecutionLocation.Internal,
+                        0,
+                        delegate(CommandExecutionContext context, CommandInput input)
+                        {
+                            handlerCalled = true;
+                            return Success("executed");
+                        }
+                    ),
+                    out registrationError
+                ),
+                registrationError
+            );
+
+            CommandResult result = new CommandExecutor(registry).Execute(ServerContext(0), new CommandInput("internal", new string[0]));
+
+            False(handlerCalled, "Internal handler executed through the public executor.");
+            False(result.IsSuccess, "Internal command unexpectedly succeeded.");
+            Equal("Command unavailable", result.Title, "title");
+            Equal("Command 'internal' is internal.", result.Summary, "summary");
+        }
+
+        [Fact]
         public void IsolateHandlerException()
         {
             var registry =

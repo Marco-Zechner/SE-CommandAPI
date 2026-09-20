@@ -26,7 +26,8 @@ namespace MarcoZechner.CommandApi.Core
                 "help",
                 "ping",
                 "whoami",
-                "status"
+                "status",
+                "mods"
             };
 
             CommandDefinition existing;
@@ -127,12 +128,26 @@ namespace MarcoZechner.CommandApi.Core
                     }
                 );
 
+            var mods = new CommandDefinition(
+                "mods",
+                new string[0],
+                "Lists mods with registered commands.",
+                "Lists CommandAPI and external mods that currently own one or more registered commands.",
+                "mods [page]",
+                "CommandAPI",
+                CommandExecutionLocation.Either,
+                0,
+                OwnerId,
+                delegate(CommandExecutionContext context, CommandInput input) { return BuildModsResult(registry, input); }
+            );
+
             CommandDefinition[] definitions =
             {
                 help,
                 ping,
                 whoami,
-                status
+                status,
+                mods
             };
 
             for (
@@ -352,6 +367,73 @@ namespace MarcoZechner.CommandApi.Core
             );
         }
 
+        private static CommandResult BuildModsResult(CommandRegistry registry, CommandInput input)
+        {
+            const int pageSize = 8;
+
+            if (input.Arguments.Length > 1)
+                return Failure("Invalid mods request", "Mods accepts at most one page number.", "/cmd mods [page]");
+
+            int page = 1;
+            if (input.Arguments.Length == 1 && (!int.TryParse(input.Arguments[0], out page) || page < 1))
+                return Failure("Invalid mods request", "Page must be a positive whole number.", "/cmd mods [page]");
+
+            var commandCountsByOwner = new Dictionary<string, int>(StringComparer.Ordinal);
+            var prefixesByOwner = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            string[] registeredPrefixes = registry.GetPrefixes();
+
+            for (int prefixIndex = 0; prefixIndex < registeredPrefixes.Length; prefixIndex++)
+            {
+                string prefix = registeredPrefixes[prefixIndex];
+                CommandDefinition[] definitions = registry.GetDefinitions(prefix);
+
+                for (int definitionIndex = 0; definitionIndex < definitions.Length; definitionIndex++)
+                {
+                    string ownerId = definitions[definitionIndex].OwnerId;
+                    int count;
+                    commandCountsByOwner[ownerId] = commandCountsByOwner.TryGetValue(ownerId, out count) ? count + 1 : 1;
+
+                    List<string> prefixes;
+                    if (!prefixesByOwner.TryGetValue(ownerId, out prefixes))
+                    {
+                        prefixes = new List<string>();
+                        prefixesByOwner.Add(ownerId, prefixes);
+                    }
+
+                    if (!prefixes.Contains(prefix))
+                        prefixes.Add(prefix);
+                }
+            }
+
+            var owners = new List<string>(commandCountsByOwner.Keys);
+            owners.Sort(StringComparer.Ordinal);
+
+            int pageCount = Math.Max(1, (owners.Count + pageSize - 1) / pageSize);
+            if (page > pageCount)
+                return Failure("Invalid mods page", "Page " + page + " does not exist. Available pages: 1-" + pageCount + ".", "/cmd mods [page]");
+
+            int firstIndex = (page - 1) * pageSize;
+            int lineCount = Math.Min(pageSize, owners.Count - firstIndex);
+            var lines = new string[lineCount];
+
+            for (int index = 0; index < lineCount; index++)
+            {
+                string ownerId = owners[firstIndex + index];
+                int commandCount = commandCountsByOwner[ownerId];
+                List<string> prefixes = prefixesByOwner[ownerId];
+                prefixes.Sort(StringComparer.Ordinal);
+                lines[index] = ownerId + " [" + string.Join(", ", prefixes.ToArray()) + "] - " + commandCount + (commandCount == 1 ? " command" : " commands");
+            }
+
+            return new CommandResult(
+                true,
+                "Registered mods",
+                "Mods with registered commands: " + owners.Count + ". Page " + page + "/" + pageCount + ".",
+                lines,
+                CommandSeverity.Information,
+                page < pageCount ? "/cmd mods " + (page + 1) : null
+            );
+        }
         private static CommandResult BuildStatusResult(
             CommandRegistry registry,
             CommandStatusProvider statusProvider,
@@ -379,11 +461,6 @@ namespace MarcoZechner.CommandApi.Core
                 );
             }
 
-            string richHudState =
-                snapshot.RichHudChatAvailable
-                    ? "available"
-                    : "unavailable";
-
             return new CommandResult(
                 true,
                 "CommandAPI status",
@@ -400,8 +477,6 @@ namespace MarcoZechner.CommandApi.Core
                         + registry.Count,
                     "Network: "
                         + snapshot.NetworkState,
-                    "RichHudChat: "
-                        + richHudState,
                     "Presentation: "
                         + snapshot.PresentationAdapter,
                     "External providers: "
@@ -428,15 +503,6 @@ namespace MarcoZechner.CommandApi.Core
             if (
                 definition.ExecutionLocation
                     == CommandExecutionLocation.Internal
-            )
-            {
-                return false;
-            }
-
-            if (
-                definition.ExecutionLocation
-                    == CommandExecutionLocation.Server
-                && !context.IsServer
             )
             {
                 return false;

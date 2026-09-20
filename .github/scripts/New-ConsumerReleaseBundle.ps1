@@ -127,6 +127,50 @@ function Read-ConsumerReleaseMetadata {
             "$($parts["Patch"])"
         )
 
+    $dependencyPropertyPattern = '(?s)public\s+static\s+LibraryDependency\s*\[\s*\]\s+Dependencies\s*\{\s*get;\s*\}\s*=\s*\{(?<entries>.*?)\}\s*;'
+    $dependencyEntryPattern = 'new\s+LibraryDependency\s*\(\s*"(?<packageId>(?:\\.|[^"\\])*)"\s*,\s*"(?<version>(?:\\.|[^"\\])*)"\s*\)'
+    $dependencyPropertyMatches = @([regex]::Matches($text, $dependencyPropertyPattern))
+
+    if ($dependencyPropertyMatches.Count -ne 1) {
+        throw "Consumer version file '$VersionFilePath' must declare exactly one supported Dependencies property."
+    }
+
+    $dependencyEntriesText = [string]$dependencyPropertyMatches[0].Groups["entries"].Value
+    $dependencyResidue = [regex]::Replace($dependencyEntriesText, $dependencyEntryPattern, "")
+    $dependencyResidue = [regex]::Replace($dependencyResidue, '[\s,]', "")
+
+    if (-not [string]::IsNullOrEmpty($dependencyResidue)) {
+        throw "Consumer Dependencies property in '$VersionFilePath' contains unsupported syntax."
+    }
+
+    $dependencies = [ordered]@{}
+    $dependencyKeys = @{}
+
+    foreach ($dependencyMatch in @([regex]::Matches($dependencyEntriesText, $dependencyEntryPattern))) {
+        $dependencyPackageId = ConvertFrom-CSharpStringLiteral -Value $dependencyMatch.Groups["packageId"].Value -Path $VersionFilePath
+        $dependencyVersion = ConvertFrom-CSharpStringLiteral -Value $dependencyMatch.Groups["version"].Value -Path $VersionFilePath
+
+        if ($dependencyPackageId -notmatch '^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$') {
+            throw "Consumer dependency '$dependencyPackageId' has an invalid package ID."
+        }
+
+        if ($dependencyVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
+            throw "Consumer dependency '$dependencyPackageId' has invalid version '$dependencyVersion'."
+        }
+
+        $dependencyKey = $dependencyPackageId.ToLowerInvariant()
+        if ($dependencyKeys.ContainsKey($dependencyKey)) {
+            throw "Consumer dependency '$dependencyPackageId' is declared more than once."
+        }
+
+        $dependencyKeys[$dependencyKey] = $dependencyPackageId
+        $dependencies[$dependencyPackageId] = $dependencyVersion
+    }
+
+    if ($dependencies.Count -eq 0) {
+        throw "Consumer version file '$VersionFilePath' declares no SELibs dependencies."
+    }
+
     $entryPattern =
         (
             '(?s)new\s+ChangelogEntry\s*\(\s*' +
@@ -272,6 +316,7 @@ function Read-ConsumerReleaseMetadata {
 
     return [pscustomobject]@{
         Version = $version
+        Dependencies = $dependencies
         Changelog = @($changelog)
     }
 }
@@ -324,6 +369,9 @@ $version =
 $changelog =
     @($metadata.Changelog)
 
+$declaredDependencies =
+    $metadata.Dependencies
+
 if ($tagVersion -ne $version) {
     throw (
         "Release tag version '$tagVersion' does not match " +
@@ -346,26 +394,25 @@ $lock =
         -Raw |
     ConvertFrom-Json
 
-$apiProtocolProperty =
-    $lock.packages.PSObject.Properties["Mz.ApiProtocol"]
+$dependencies =
+    [ordered]@{}
 
-if ($null -eq $apiProtocolProperty) {
-    throw (
-        "selibs.lock.json does not contain the required " +
-        "Mz.ApiProtocol package."
-    )
-}
+foreach ($dependencyIdValue in @($declaredDependencies.Keys | Sort-Object)) {
+    $dependencyId = [string]$dependencyIdValue
+    $lockedProperty = $lock.packages.PSObject.Properties[$dependencyId]
 
-$apiProtocolVersion =
-    [string]$apiProtocolProperty.Value.version
+    if ($null -eq $lockedProperty) {
+        throw "selibs.lock.json does not contain declared consumer dependency '$dependencyId'."
+    }
 
-if (
-    [string]::IsNullOrWhiteSpace($apiProtocolVersion) `
-    -or $apiProtocolVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$'
-) {
-    throw (
-        "selibs.lock.json contains an invalid Mz.ApiProtocol version."
-    )
+    $declaredVersion = [string]$declaredDependencies[$dependencyId]
+    $lockedVersion = [string]$lockedProperty.Value.version
+
+    if ($lockedVersion -ne $declaredVersion) {
+        throw "Consumer dependency '$dependencyId' declares version '$declaredVersion', but selibs.lock.json contains '$lockedVersion'."
+    }
+
+    $dependencies[$dependencyId] = $lockedVersion
 }
 
 $testProject =
@@ -380,7 +427,10 @@ if (-not (Test-Path -LiteralPath $testProject -PathType Leaf)) {
 Write-Output "Package: $packageId"
 Write-Output "Version: $version"
 Write-Output "Tag: $Tag"
-Write-Output "Mz.ApiProtocol dependency: $apiProtocolVersion"
+
+foreach ($dependencyId in @($dependencies.Keys)) {
+    Write-Output "$dependencyId dependency: $($dependencies[$dependencyId])"
+}
 
 if (-not $SkipTests) {
     Write-Output ""
@@ -448,6 +498,10 @@ try {
                         ) `
                         -or $_.Name.Equals(
                             "README.md",
+                            [System.StringComparison]::OrdinalIgnoreCase
+                        ) `
+                        -or $_.Name.Equals(
+                            "Guide.md",
                             [System.StringComparison]::OrdinalIgnoreCase
                         )
                     )
@@ -543,11 +597,6 @@ try {
                 -Algorithm SHA256
         ).Hash.ToLowerInvariant()
 
-    $dependencies =
-        [ordered]@{
-            "Mz.ApiProtocol" = $apiProtocolVersion
-        }
-
     $packageManifest =
         [ordered]@{
             schemaVersion = 1
@@ -618,7 +667,14 @@ try {
             ""
             "## Exact dependencies"
             ""
-            "- ``Mz.ApiProtocol`` ``$apiProtocolVersion``"
+        )
+
+    foreach ($dependencyId in @($dependencies.Keys)) {
+        $notesLines += "- ``$dependencyId`` ``$($dependencies[$dependencyId])``"
+    }
+
+    $notesLines +=
+        @(
             ""
             "## Validation"
             ""

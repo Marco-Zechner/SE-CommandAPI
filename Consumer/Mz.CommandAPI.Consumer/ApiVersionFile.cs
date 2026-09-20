@@ -15,7 +15,7 @@ namespace Mz.CommandApi
         /// <summary>
         /// Gets the minor facade version number.
         /// </summary>
-        public const int Minor = 1;
+        public const int Minor = 2;
 
         /// <summary>
         /// Gets the patch facade version number.
@@ -33,6 +33,14 @@ namespace Mz.CommandApi
             );
 
         /// <summary>
+        /// Gets the exact SELibs package dependencies required by this consumer release.
+        /// </summary>
+        public static LibraryDependency[] Dependencies { get; } = {
+            new LibraryDependency("Mz.ApiProtocol", "0.3.0"),
+            new LibraryDependency("Mz.SemanticVersioning", "0.2.0")
+        };
+
+        /// <summary>
         /// Gets the normalized facade version string.
         /// </summary>
         public static string VersionString =>
@@ -46,6 +54,16 @@ namespace Mz.CommandApi
                 VersionString,
                 new[]
                 {
+                    new ChangelogEntry(
+                        "1.2.0",
+                        new[]
+                        {
+                            "Rejected the reserved Internal execution location before public registrations reach the provider.",
+                            "Added a packaged integration guide and expanded standalone consumer documentation.",
+                            "Declared exact SELibs dependencies on Mz.ApiProtocol 0.3.0 and Mz.SemanticVersioning 0.2.0.",
+                            "Retained compatibility with CommandAPI provider API 1.1.0 and newer compatible versions."
+                        }
+                    ),
                     new ChangelogEntry(
                         "1.1.0",
                         new[]
