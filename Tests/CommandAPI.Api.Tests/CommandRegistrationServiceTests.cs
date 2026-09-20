@@ -79,6 +79,7 @@ namespace MarcoZechner.CommandApi.Tests
 
             Assert.NotNull(unregister);
             Assert.Equal(1, registry.Count);
+            Assert.Equal(1, service.ExternalProviderCount);
 
             CommandDefinition definition;
 
@@ -199,6 +200,7 @@ namespace MarcoZechner.CommandApi.Tests
             unregister();
 
             Assert.Equal(0, registry.Count);
+            Assert.Equal(0, service.ExternalProviderCount);
 
             Assert.False(
                 registry.TryResolve(
@@ -206,6 +208,34 @@ namespace MarcoZechner.CommandApi.Tests
                     out definition
                 )
             );
+        }
+
+        [Fact]
+        public void ExternalProviderCountTracksDistinctOwnersAndIdempotentUnregister()
+        {
+            var registry = new CommandRegistry();
+            var service = new CommandRegistrationService(registry);
+
+            Action first = service.RegisterCommand(MinimalMetadata("Example.One", "first"), SuccessHandler);
+            Action second = service.RegisterCommand(MinimalMetadata("Example.One", "second"), SuccessHandler);
+            Action third = service.RegisterCommand(MinimalMetadata("Example.Two", "third"), SuccessHandler);
+
+            Assert.Equal(3, registry.Count);
+            Assert.Equal(2, service.ExternalProviderCount);
+
+            second();
+            Assert.Equal(2, registry.Count);
+            Assert.Equal(2, service.ExternalProviderCount);
+
+            first();
+            first();
+            Assert.Equal(1, registry.Count);
+            Assert.Equal(1, service.ExternalProviderCount);
+
+            third();
+            third();
+            Assert.Equal(0, registry.Count);
+            Assert.Equal(0, service.ExternalProviderCount);
         }
 
         [Fact]
@@ -286,14 +316,16 @@ namespace MarcoZechner.CommandApi.Tests
             Assert.Equal(0, registry.Count);
         }
 
-        private static IDictionary<string, object>
-            MinimalMetadata(
-                string commandName
-            )
+        private static IDictionary<string, object> MinimalMetadata(string commandName)
+        {
+            return MinimalMetadata("Example.Mod", commandName);
+        }
+
+        private static IDictionary<string, object> MinimalMetadata(string ownerId, string commandName)
         {
             return new Dictionary<string, object>
             {
-                { "OwnerId", "Example.Mod" },
+                { "OwnerId", ownerId },
                 { "CanonicalName", commandName }
             };
         }

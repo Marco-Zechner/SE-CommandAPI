@@ -335,7 +335,8 @@ namespace MarcoZechner.CommandApi
 
         private CommandStatusSnapshot BuildStatusSnapshot()
         {
-            return new CommandStatusSnapshot(ModVersionFile.VersionString, ApiVersionFile.VersionString, ProtocolVersion, _networkState, _presentationAdapter, 0);
+            int externalProviderCount = _apiProvider == null ? 0 : _apiProvider.ExternalProviderCount;
+            return new CommandStatusSnapshot(ModVersionFile.VersionString, ApiVersionFile.VersionString, ProtocolVersion, _networkState, _presentationAdapter, externalProviderCount);
         }
 
         private void DisposeRuntime()

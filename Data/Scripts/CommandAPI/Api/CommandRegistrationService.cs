@@ -7,6 +7,12 @@ namespace MarcoZechner.CommandApi.Api
     public sealed class CommandRegistrationService
     {
         private readonly CommandRegistry _registry;
+        private readonly Dictionary<string, int> _registrationCountsByOwner = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        public int ExternalProviderCount
+        {
+            get { return _registrationCountsByOwner.Count; }
+        }
 
         public CommandRegistrationService(
             CommandRegistry registry
@@ -142,7 +148,42 @@ namespace MarcoZechner.CommandApi.Api
                 );
             }
 
-            return unregister;
+            AddRegistration(ownerId);
+
+            bool isUnregistered = false;
+
+            return delegate
+            {
+                if (isUnregistered)
+                    return;
+
+                isUnregistered = true;
+                unregister();
+                RemoveRegistration(ownerId);
+            };
+        }
+
+        private void AddRegistration(string ownerId)
+        {
+            int count;
+
+            if (_registrationCountsByOwner.TryGetValue(ownerId, out count))
+                _registrationCountsByOwner[ownerId] = count + 1;
+            else
+                _registrationCountsByOwner.Add(ownerId, 1);
+        }
+
+        private void RemoveRegistration(string ownerId)
+        {
+            int count;
+
+            if (!_registrationCountsByOwner.TryGetValue(ownerId, out count))
+                return;
+
+            if (count <= 1)
+                _registrationCountsByOwner.Remove(ownerId);
+            else
+                _registrationCountsByOwner[ownerId] = count - 1;
         }
 
         private static CommandResult InvokeHandler(
