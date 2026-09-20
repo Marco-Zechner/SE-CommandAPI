@@ -137,13 +137,14 @@ an existing name or alias under the same prefix, is rejected by the provider.
 
 ## 5. Execution location
 
-`CommandExecutionLocation` declares where CommandAPI should execute the
-registered handler:
+Public `CommandExecutionLocation` registrations support:
 
 - `Client`
 - `Server`
 - `Either`
-- `Internal`
+
+The enum also contains `Internal`, which is reserved for CommandAPI itself and
+is rejected by the public consumer facade and provider registration path.
 
 Use `Server` when the command changes authoritative game state or depends on
 trusted server-derived requester information.
@@ -152,10 +153,6 @@ Use `Client` for commands whose work belongs only to the local client.
 
 Use `Either` when the command can execute on the submission side without
 requiring authoritative server execution.
-
-`Internal` is reserved for CommandAPI implementation use. Public consumer
-registrations using it are rejected, and consumer handlers cannot execute under
-that location.
 
 The handler can inspect `CommandRequest.IsServer` to see which side is
 executing it.

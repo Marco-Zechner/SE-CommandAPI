@@ -25,9 +25,13 @@ From the consuming mod root:
 
 Skip `selibs init` when the mod already contains `selibs.json`.
 
-SELibs installs `Mz.CommandAPI.Consumer` and resolves the exact
-`Mz.ApiProtocol` and `Mz.SemanticVersioning` dependency versions required by
-that package release.
+SELibs installs `Mz.CommandAPI.Consumer` and resolves the exact dependency
+versions required by that package release.
+
+`Mz.CommandAPI.Consumer` 1.2.0 declares these exact SELibs dependencies:
+
+- `Mz.ApiProtocol` 0.3.0
+- `Mz.SemanticVersioning` 0.2.0
 
 Inspect the installed dependency graph with:
 
@@ -38,13 +42,14 @@ not installed into consumer mods.
 
 ### Install manually
 
-Copy the complete consumer facade folder into the consuming mod:
+From the release component archive, copy the complete consumer facade folder
+into the consuming mod:
 
-    Consumer/Mz.CommandAPI.Consumer
+    Libraries/Mz.CommandAPI.Consumer
         ->
     Data/Scripts/ExampleMod/Libraries/Mz.CommandAPI.Consumer
 
-Also install the exact ApiProtocol dependency graph declared by the matching
+Also install the exact dependency graph declared by the matching
 `Mz.CommandAPI.Consumer` release manifest:
 
     Data/Scripts/ExampleMod/Libraries/Mz.ApiProtocol.Core

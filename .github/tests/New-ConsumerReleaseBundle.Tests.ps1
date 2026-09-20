@@ -167,6 +167,9 @@ $lock =
 $apiProtocolVersion =
     [string]$lock.packages."Mz.ApiProtocol".version
 
+$semanticVersioningVersion =
+    [string]$lock.packages."Mz.SemanticVersioning".version
+
 $testRoot =
     Join-Path `
         ([System.IO.Path]::GetTempPath()) `
@@ -255,7 +258,7 @@ try {
         -Message "Consumer current changelog is empty."
 
     Assert-Equal `
-        -Expected 1 `
+        -Expected 2 `
         -Actual @(
             $manifest.dependencies.PSObject.Properties
         ).Count `
@@ -267,6 +270,13 @@ try {
             [string]$manifest.dependencies."Mz.ApiProtocol"
         ) `
         -Message "Consumer manifest has the wrong ApiProtocol dependency."
+
+    Assert-Equal `
+        -Expected $semanticVersioningVersion `
+        -Actual (
+            [string]$manifest.dependencies."Mz.SemanticVersioning"
+        ) `
+        -Message "Consumer manifest has the wrong SemanticVersioning dependency."
 
     Assert-Equal `
         -Expected 1 `
@@ -334,6 +344,16 @@ try {
             }
         ).Count `
         -Message "Consumer archive embeds its ApiProtocol dependency."
+
+    Assert-Equal `
+        -Expected 0 `
+        -Actual @(
+            $entries |
+            Where-Object {
+                $_ -like "Libraries/Mz.SemanticVersioning*"
+            }
+        ).Count `
+        -Message "Consumer archive embeds its SemanticVersioning dependency."
 
     Assert-Throws `
         -Action {
