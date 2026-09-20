@@ -428,15 +428,6 @@ namespace MarcoZechner.CommandApi.Core
 
             if (
                 definition.ExecutionLocation
-                    == CommandExecutionLocation.Server
-                && !context.IsServer
-            )
-            {
-                return false;
-            }
-
-            if (
-                definition.ExecutionLocation
                     == CommandExecutionLocation.Client
                 && context.IsServer
             )

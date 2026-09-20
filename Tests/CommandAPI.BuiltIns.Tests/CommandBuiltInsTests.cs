@@ -145,6 +145,35 @@ namespace MarcoZechner.CommandApi.Tests
         }
 
         [Fact]
+        public void ClientHelpListsCommandsThatCanBeSubmittedFromClient()
+        {
+            var registry = new CommandRegistry();
+
+            Register(registry, Definition("admin", new string[0], 3, CommandExecutionLocation.Server));
+            Register(registry, Definition("clientonly", new string[0], 0, CommandExecutionLocation.Client));
+            Register(registry, Definition("internal", new string[0], 0, CommandExecutionLocation.Internal));
+            RegisterBuiltIns(registry);
+
+            var executor = new CommandExecutor(registry);
+            CommandResult result = executor.Execute(ClientContext(0), new CommandInput("help", new string[0]));
+
+            True(result.IsSuccess, "Help command failed.");
+            Equal("Available commands: 5", result.Summary, "summary");
+            SequenceEqual(
+                new[]
+                {
+                    "clientonly - clientonly description",
+                    "help - Lists available commands.",
+                    "ping - Tests CommandAPI request execution.",
+                    "whoami - Reports your server-derived identity.",
+                    "status - Reports CommandAPI status."
+                },
+                result.DetailLines,
+                "detail lines"
+            );
+        }
+
+        [Fact]
         public void HelpResolvesAliasesToDetailedMetadata()
         {
             var registry =
@@ -329,6 +358,11 @@ namespace MarcoZechner.CommandApi.Tests
                 ),
                 errorMessage
             );
+        }
+
+        private static CommandExecutionContext ClientContext(int permissionLevel)
+        {
+            return new CommandExecutionContext("request-builtins", 76561198000000042UL, 42L, "Client Player", permissionLevel, false);
         }
 
         private static CommandExecutionContext ServerContext(
