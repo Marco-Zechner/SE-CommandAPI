@@ -378,14 +378,31 @@ namespace MarcoZechner.CommandApi.Core
             if (input.Arguments.Length == 1 && (!int.TryParse(input.Arguments[0], out page) || page < 1))
                 return Failure("Invalid mods request", "Page must be a positive whole number.", "/cmd mods [page]");
 
-            CommandDefinition[] definitions = registry.GetDefinitions();
             var commandCountsByOwner = new Dictionary<string, int>(StringComparer.Ordinal);
+            var prefixesByOwner = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            string[] registeredPrefixes = registry.GetPrefixes();
 
-            for (int index = 0; index < definitions.Length; index++)
+            for (int prefixIndex = 0; prefixIndex < registeredPrefixes.Length; prefixIndex++)
             {
-                string ownerId = definitions[index].OwnerId;
-                int count;
-                commandCountsByOwner[ownerId] = commandCountsByOwner.TryGetValue(ownerId, out count) ? count + 1 : 1;
+                string prefix = registeredPrefixes[prefixIndex];
+                CommandDefinition[] definitions = registry.GetDefinitions(prefix);
+
+                for (int definitionIndex = 0; definitionIndex < definitions.Length; definitionIndex++)
+                {
+                    string ownerId = definitions[definitionIndex].OwnerId;
+                    int count;
+                    commandCountsByOwner[ownerId] = commandCountsByOwner.TryGetValue(ownerId, out count) ? count + 1 : 1;
+
+                    List<string> prefixes;
+                    if (!prefixesByOwner.TryGetValue(ownerId, out prefixes))
+                    {
+                        prefixes = new List<string>();
+                        prefixesByOwner.Add(ownerId, prefixes);
+                    }
+
+                    if (!prefixes.Contains(prefix))
+                        prefixes.Add(prefix);
+                }
             }
 
             var owners = new List<string>(commandCountsByOwner.Keys);
@@ -403,7 +420,9 @@ namespace MarcoZechner.CommandApi.Core
             {
                 string ownerId = owners[firstIndex + index];
                 int commandCount = commandCountsByOwner[ownerId];
-                lines[index] = ownerId + " - " + commandCount + (commandCount == 1 ? " command" : " commands");
+                List<string> prefixes = prefixesByOwner[ownerId];
+                prefixes.Sort(StringComparer.Ordinal);
+                lines[index] = ownerId + " [" + string.Join(", ", prefixes.ToArray()) + "] - " + commandCount + (commandCount == 1 ? " command" : " commands");
             }
 
             return new CommandResult(

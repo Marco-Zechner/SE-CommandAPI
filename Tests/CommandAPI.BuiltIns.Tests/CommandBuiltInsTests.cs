@@ -259,9 +259,31 @@ namespace MarcoZechner.CommandApi.Tests
             SequenceEqual(
                 new[]
                 {
-                    "CommandAPI - 5 commands",
-                    "Example.One - 2 commands",
-                    "Example.Two - 1 command"
+                    "CommandAPI [/cmd] - 5 commands",
+                    "Example.One [/cmd] - 2 commands",
+                    "Example.Two [/cmd] - 1 command"
+                },
+                result.DetailLines,
+                "detail lines"
+            );
+        }
+        [Fact]
+        public void ModsListsAllPrefixesOwnedByMod()
+        {
+            var registry = new CommandRegistry();
+            Register(registry, "/alpha", Definition("one", new string[0], 0, CommandExecutionLocation.Client, "Example.Mod"));
+            Register(registry, "/beta", Definition("two", new string[0], 0, CommandExecutionLocation.Client, "Example.Mod"));
+            RegisterBuiltIns(registry);
+
+            var executor = new CommandExecutor(registry);
+            CommandResult result = executor.Execute(ClientContext(0), new CommandInput("mods", new string[0]));
+
+            True(result.IsSuccess, "Mods command failed.");
+            SequenceEqual(
+                new[]
+                {
+                    "CommandAPI [/cmd] - 5 commands",
+                    "Example.Mod [/alpha, /beta] - 2 commands"
                 },
                 result.DetailLines,
                 "detail lines"
@@ -284,13 +306,13 @@ namespace MarcoZechner.CommandApi.Tests
             True(first.IsSuccess, "First mods page failed.");
             Equal("Mods with registered commands: 10. Page 1/2.", first.Summary, "first summary");
             Equal(8, first.DetailLines.Length, "first page detail count");
-            Equal("CommandAPI - 5 commands", first.DetailLines[0], "first page first line");
-            Equal("Example.07 - 1 command", first.DetailLines[7], "first page last line");
+            Equal("CommandAPI [/cmd] - 5 commands", first.DetailLines[0], "first page first line");
+            Equal("Example.07 [/cmd] - 1 command", first.DetailLines[7], "first page last line");
             Equal("/cmd mods 2", first.UsageHint, "first page next-page hint");
 
             True(second.IsSuccess, "Second mods page failed.");
             Equal("Mods with registered commands: 10. Page 2/2.", second.Summary, "second summary");
-            SequenceEqual(new[] { "Example.08 - 1 command", "Example.09 - 1 command" }, second.DetailLines, "second page");
+            SequenceEqual(new[] { "Example.08 [/cmd] - 1 command", "Example.09 [/cmd] - 1 command" }, second.DetailLines, "second page");
             Equal<string>(null, second.UsageHint, "second page next-page hint");
         }
 
@@ -431,6 +453,12 @@ namespace MarcoZechner.CommandApi.Tests
                 ),
                 errorMessage
             );
+        }
+
+        private static void Register(CommandRegistry registry, string prefix, CommandDefinition definition)
+        {
+            string errorMessage;
+            True(registry.TryRegister(prefix, definition, out errorMessage), errorMessage);
         }
 
         private static CommandExecutionContext ClientContext(int permissionLevel)
