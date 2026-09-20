@@ -19,8 +19,8 @@ namespace MarcoZechner.CommandApi.Api
         public const string RegisterCommandEndpoint =
             "RegisterCommand";
 
-        private readonly ApiDiscoveryProvider
-            _provider;
+        private readonly ApiDiscoveryProvider _provider;
+        private readonly CommandRegistrationService _registrationService;
 
         public bool IsStarted
         {
@@ -30,10 +30,12 @@ namespace MarcoZechner.CommandApi.Api
             }
         }
 
-        public CommandApiProvider(
-            IModMessageBus messageBus,
-            CommandRegistry registry
-        )
+        public int ExternalProviderCount
+        {
+            get { return _registrationService.ExternalProviderCount; }
+        }
+
+        public CommandApiProvider(IModMessageBus messageBus, CommandRegistry registry)
         {
             if (messageBus == null)
                 throw new ArgumentNullException(nameof(messageBus));
@@ -41,10 +43,7 @@ namespace MarcoZechner.CommandApi.Api
             if (registry == null)
                 throw new ArgumentNullException(nameof(registry));
 
-            var registrationService =
-                new CommandRegistrationService(
-                    registry
-                );
+            _registrationService = new CommandRegistrationService(registry);
 
             Func<
                 IDictionary<string, object>,
@@ -54,7 +53,7 @@ namespace MarcoZechner.CommandApi.Api
                 >,
                 Action
             > registerCommand =
-                registrationService.RegisterCommand;
+                _registrationService.RegisterCommand;
 
             var endpoints =
                 new Dictionary<string, Delegate>(

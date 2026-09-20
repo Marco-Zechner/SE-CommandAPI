@@ -30,6 +30,7 @@ namespace MarcoZechner.CommandApi.Tests
 
             provider.Start();
 
+            Assert.Equal(0, provider.ExternalProviderCount);
             Assert.Equal(
                 1,
                 bus.RegistrationCount
@@ -101,6 +102,7 @@ namespace MarcoZechner.CommandApi.Tests
                 );
 
             Assert.Equal(1, registry.Count);
+            Assert.Equal(1, provider.ExternalProviderCount);
 
             CommandDefinition definition;
 
@@ -114,6 +116,7 @@ namespace MarcoZechner.CommandApi.Tests
             unregister();
 
             Assert.Equal(0, registry.Count);
+            Assert.Equal(0, provider.ExternalProviderCount);
 
             provider.Dispose();
 
@@ -138,6 +141,7 @@ namespace MarcoZechner.CommandApi.Tests
             provider.Start();
             provider.Start();
 
+            Assert.Equal(0, provider.ExternalProviderCount);
             Assert.Equal(
                 1,
                 bus.RegistrationCount

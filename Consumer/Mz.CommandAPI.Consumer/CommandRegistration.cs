@@ -95,6 +95,9 @@ namespace Mz.CommandApi
                 );
             }
 
+            if (executionLocation == CommandExecutionLocation.Internal)
+                throw new ArgumentException("The Internal execution location is reserved for CommandAPI.", nameof(executionLocation));
+
             if (permissionRequirement < 0)
                 throw new ArgumentException(
                     "The permission requirement cannot be negative.",

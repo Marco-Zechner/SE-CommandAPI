@@ -1,59 +1,25 @@
 # CommandAPI
 
-CommandAPI is a command framework for Space Engineers.
+CommandAPI is a command framework and registration API for Space Engineers.
 
-The intended long-term architecture is defined in
-[`DEVELOPMENT_GOAL.md`](DEVELOPMENT_GOAL.md). The current runtime is an
-intermediate implementation and may differ from that target.
+The current basic runtime is intentionally independent of RichHudChatAPI. Command input and result presentation use vanilla Space Engineers chat. Rich HUD integration can be designed again later without being part of the command core.
 
 ## Current runtime
 
-The current vertical slice supports:
+CommandAPI supports:
 
-- multiple top-level command prefixes such as `/cmd`, `/ime`, or `/smoke`;
+- multiple top-level command prefixes such as `/cmd` or `/config`;
 - command names and aliases scoped within each prefix;
 - shared prefixes, with collisions enforced at command and alias level;
-- client-local, authoritative-server, either-side, and internal commands;
+- client-local, authoritative-server, and either-side execution locations;
+- `Internal` is reserved for CommandAPI implementation use and cannot be registered by consumers;
 - local execution for `Client` and normal `Either` submissions;
 - authoritative networking for `Server` submissions;
 - requester-only structured command results;
-- optional RichHudChatAPI input and transcript presentation for /cmd;
-- vanilla chat interception as the client fallback;
+- vanilla chat interception on clients;
 - external command registration on clients, listen servers, and dedicated servers.
 
-Unknown prefixes are left untouched as ordinary chat. A registered prefix is
-removed from interception when its final command is unregistered.
-
-## RichHudChatAPI integration
-
-RichHudChatAPI is optional and negotiated by API descriptor version:
-
-- `1.0` provides `/cmd` route submission and transcript presentation.
-- `1.1` adds command suggestions, selection, and completion interactions.
-- `1.2` lets `/` activate CommandAPI draft context while submissions remain
-  restricted to the `/cmd` route.
-- `1.3` adds styled headers, command rows, input spans, control hints, filtering,
-  and unknown-command feedback.
-
-CommandAPI owns command lookup, filtering, selection, completion, validation
-semantics, and execution. RichHudChatAPI only renders generic presentation data
-and forwards input interactions. Older compatible providers retain their
-earlier behavior without receiving unsupported metadata.
-
-## Prefix collision policy
-
-Prefixes are shared namespaces rather than exclusively owned resources.
-
-Two mods may both register commands under `/ime`:
-
-- Mod A may register `/ime theme`.
-- Mod B may register `/ime reload`.
-
-Both registrations succeed. If both attempt `/ime theme`, or if a name collides
-with an alias already registered under `/ime`, the second registration fails.
-
-The same command name may exist under different prefixes, such as `/cmd status`
-and `/ime status`.
+Unknown prefixes remain ordinary chat. A registered prefix stops being intercepted when its final command is unregistered.
 
 ## Built-in commands
 
@@ -66,51 +32,43 @@ CommandAPI owns `/cmd`:
 
 Help lookup and usage output are scoped to the prefix used for the request.
 
-## External registration API
+## Consumer API
 
-The `RegisterCommand` metadata dictionary supports:
+Mods should consume CommandAPI through the typed `Mz.CommandAPI.Consumer` package rather than interacting with ApiProtocol dictionaries directly.
 
-- `OwnerId` â€” required string;
-- `Prefix` â€” optional string, defaults to `/cmd`;
-- `ExecutionLocation` â€” optional string: `Client`, `Server`, `Either`, or
-  `Internal`; defaults to `Server`;
-- `CanonicalName` â€” required string;
-- `Aliases` â€” optional string array;
-- `ShortDescription`, `HelpText`, `Usage`, and `Category` â€” optional strings;
-- `PermissionRequirement` â€” optional `Int32`.
+Install it from the consuming mod root with:
 
-The handler request includes `Prefix`, `CommandName`, `Arguments`, requester
-identity and permission fields, `RequestId`, and `IsServer`.
+    selibs add Mz.CommandAPI.Consumer
 
-The API descriptor version is `1.1.0`. The registration endpoint signature is
-unchanged, and omitted new fields retain the original `/cmd` server-command
-behavior.
+The consumer facade owns provider discovery, endpoint validation, rediscovery, registration cleanup, typed registration metadata, typed command requests, and typed command responses.
 
-External mods must register on every peer where they are loaded. CommandAPI
-publishes its provider locally on every peer so client command handlers and
-server command handlers are both available in the correct process.
+A typical registration specifies:
 
-## Smoke consumers
+- owner ID;
+- top-level prefix;
+- canonical command name and optional aliases;
+- execution location;
+- help and usage metadata;
+- permission requirement;
+- typed handler.
 
-The two included smoke mods compile and use the typed
-`Mz.CommandAPI.Consumer` facade rather than handling discovery dictionaries
-directly. Both use the shared `/smoke` prefix.
+The provider publishes the BCL-only `RegisterCommand` endpoint internally. The current public provider API version is defined by `Data/Scripts/CommandAPI/ApiVersionFile.cs`.
 
-Each registers a deterministic server command:
+External mods must register on every peer where they are loaded. CommandAPI publishes its provider locally on every peer so client and server handlers are available in the correct process.
 
-- `/smoke smoke.alpha`
-- `/smoke smoke.beta`
+## Prefix collision policy
 
-Both also attempt the client-local `/smoke smoke` command. The first loaded
-consumer owns that command name on the current peer; the other keeps its
-qualified server command.
+Prefixes are shared namespaces. Different mods may register different command names under the same prefix.
+
+For example, one mod may own `/config reload` while another owns `/config export`. Registering the same canonical name or a colliding alias under the same prefix fails. The same command name may exist under different prefixes.
 
 ## Build and test
 
 From the mod root:
 
-`dotnet test CommandAPI.slnx --nologo`
+    dotnet test CommandAPI.slnx --nologo
+    dotnet build Data\CommandAPI.csproj --nologo
 
-`dotnet build Data\CommandAPI.csproj --nologo`
+Consumer package format is verified with:
 
-The smoke projects can be built independently from `SmokeMods`.
+    powershell -NoProfile -ExecutionPolicy Bypass -File .github\tests\New-ConsumerReleaseBundle.Tests.ps1

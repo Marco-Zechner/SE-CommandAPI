@@ -5,8 +5,7 @@ namespace Mz.Networking
     /// <summary>
     /// Owns one network-message handler registration.
     /// </summary>
-    public sealed class NetworkMessageSubscription :
-        IDisposable
+    public sealed class NetworkMessageSubscription : IDisposable
     {
         private readonly NetworkMessageDispatcher _dispatcher;
         private readonly string _messageType;
@@ -14,25 +13,13 @@ namespace Mz.Networking
 
         private bool _isDisposed;
 
-        internal NetworkMessageSubscription(
-            NetworkMessageDispatcher dispatcher,
-            string messageType,
-            Action<NetworkReceiveContext> handler
-        )
+        internal NetworkMessageSubscription(NetworkMessageDispatcher dispatcher, string messageType, Action<NetworkReceiveContext> handler)
         {
             if (dispatcher == null)
-            {
-                throw new ArgumentNullException(
-                    nameof(dispatcher)
-                );
-            }
+                throw new ArgumentNullException(nameof(dispatcher));
 
             if (messageType == null)
-            {
-                throw new ArgumentNullException(
-                    nameof(messageType)
-                );
-            }
+                throw new ArgumentNullException(nameof(messageType));
 
             if (handler == null)
                 throw new ArgumentNullException(nameof(handler));
@@ -49,11 +36,8 @@ namespace Mz.Networking
         {
             if (_isDisposed)
                 return;
-
-            _dispatcher.UnregisterHandler(
-                _messageType,
-                _handler
-            );
+            
+            _dispatcher.UnregisterHandler(_messageType, _handler);
 
             _isDisposed = true;
         }

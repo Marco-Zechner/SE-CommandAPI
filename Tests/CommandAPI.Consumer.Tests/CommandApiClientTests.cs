@@ -238,6 +238,17 @@ namespace Mz.CommandApi.Tests
         }
 
         [Fact]
+        public void RegistrationRejectsInternalExecutionLocation()
+        {
+            Assert.Throws<ArgumentException>(
+                delegate
+                {
+                    new CommandRegistration("/example", "internal", CommandExecutionLocation.Internal);
+                }
+            );
+        }
+
+        [Fact]
         public void PendingRegistrationActivatesWhenProviderAppears()
         {
             var bus =

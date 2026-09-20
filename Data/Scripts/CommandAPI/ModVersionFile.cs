@@ -15,7 +15,7 @@ namespace MarcoZechner.CommandApi
         /// <summary>
         /// Gets the minor mod version number.
         /// </summary>
-        public const int Minor = 2;
+        public const int Minor = 3;
 
         /// <summary>
         /// Gets the patch mod version number.
@@ -36,6 +36,17 @@ namespace MarcoZechner.CommandApi
                 VersionString,
                 new[]
                 {
+                    new ChangelogEntry(
+                        "0.3.0",
+                        new[]
+                        {
+                            "Simplified the runtime to standalone vanilla Space Engineers chat and removed RichHudChatAPI integration.",
+                            "Improved live external-provider status and client help visibility for server-routed commands.",
+                            "Reserved the Internal execution location from public registrations.",
+                            "Updated SELibs dependencies to Mz.ApiProtocol 0.3.0, Mz.Networking 0.2.1, and Mz.SemanticVersioning 0.2.0.",
+                            "Removed disposable smoke mods and obsolete deployment tooling."
+                        }
+                    ),
                     new ChangelogEntry(
                         "0.2.0",
                         new[]

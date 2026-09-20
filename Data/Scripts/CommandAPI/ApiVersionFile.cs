@@ -15,7 +15,7 @@ namespace MarcoZechner.CommandApi
         /// <summary>
         /// Gets the minor API version number.
         /// </summary>
-        public const int Minor = 1;
+        public const int Minor = 2;
 
         /// <summary>
         /// Gets the patch API version number.
@@ -36,6 +36,14 @@ namespace MarcoZechner.CommandApi
                 VersionString,
                 new[]
                 {
+                    new ChangelogEntry(
+                        "1.2.0",
+                        new[]
+                        {
+                            "Reserved the Internal execution location for CommandAPI implementation use and reject it from public registration.",
+                            "Preserved the RegisterCommand endpoint shape and the public Client, Server, and Either execution-location contract."
+                        }
+                    ),
                     new ChangelogEntry(
                         "1.1.0",
                         new[]

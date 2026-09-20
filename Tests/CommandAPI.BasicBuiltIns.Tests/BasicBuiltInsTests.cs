@@ -175,7 +175,6 @@ namespace MarcoZechner.CommandApi.Tests
                             "1.0.0",
                             "1.0.0",
                             "Not initialized",
-                            false,
                             "VanillaChat",
                             0
                         );
