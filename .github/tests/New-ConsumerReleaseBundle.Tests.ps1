@@ -317,6 +317,7 @@ try {
         "Libraries/Mz.CommandAPI.Consumer/CommandRegistration.cs"
         "Libraries/Mz.CommandAPI.Consumer/CommandRequest.cs"
         "Libraries/Mz.CommandAPI.Consumer/CommandResponse.cs"
+        "Libraries/Mz.CommandAPI.Consumer/Guide.md"
         "Libraries/Mz.CommandAPI.Consumer/README.md"
     )) {
         Assert-True `
