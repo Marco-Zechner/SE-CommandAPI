@@ -2,10 +2,7 @@
   <Folder Name="/Data/">
     <Project Path="Data/CommandAPI.csproj" />
   </Folder>
-  <Folder Name="/SmokeMods/">
-    <Project Path="SmokeMods/CommandApiSmokeAlpha/CommandApiSmokeAlpha.csproj" />
-    <Project Path="SmokeMods/CommandApiSmokeBeta/CommandApiSmokeBeta.csproj" />
-  </Folder>
+
   <Folder Name="/Tests/">
     <Project Path="Tests/CommandAPI.Api.Tests/CommandAPI.Api.Tests.csproj" />
     <Project Path="Tests/CommandAPI.Consumer.Tests/CommandAPI.Consumer.Tests.csproj" />

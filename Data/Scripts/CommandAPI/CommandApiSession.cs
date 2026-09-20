@@ -44,9 +44,6 @@ namespace MarcoZechner.CommandApi
         private VanillaChatCommandAdapter
             _chatAdapter;
 
-        private RichHudChatCommandAdapter
-            _richHudChatAdapter;
-
         private string _networkState =
             "Not initialized";
 
@@ -210,64 +207,9 @@ namespace MarcoZechner.CommandApi
                     SubmitCommand
                 );
 
-            TryStartRichHudChatAdapter(
-                localPeerId,
-                registry
-            );
-
-            _presentationAdapter =
-                "VanillaChat fallback";
-
+            _presentationAdapter = "Vanilla chat";
             _initialized = true;
-
-            RichHudChatCommandAdapter richHudAdapter =
-                _richHudChatAdapter;
-
-            if (
-                richHudAdapter == null
-                || !richHudAdapter.IsConnected
-            )
-            {
-                output.WriteLine(
-                    ModDisplayName,
-                    "Ready. Use /cmd help."
-                );
-            }
-        }
-
-        private void TryStartRichHudChatAdapter(
-            ulong localPeerId,
-            CommandRegistry registry
-        )
-        {
-            var adapter =
-                new RichHudChatCommandAdapter(
-                    new SpaceEngineersModMessageBus(),
-                    localPeerId,
-                    SubmitCommand,
-                    registry
-                );
-
-            _richHudChatAdapter =
-                adapter;
-
-            try
-            {
-                adapter.Start();
-            }
-            catch (Exception exception)
-            {
-                _richHudChatAdapter =
-                    null;
-
-                adapter.Dispose();
-
-                MyLog.Default.WriteLineAndConsole(
-                    ModDisplayName
-                        + " RichHudChatAPI integration unavailable: "
-                        + exception
-                );
-            }
+            output.WriteLine(ModDisplayName, "Ready. Use /cmd help.");
         }
 
         private void SubmitCommand(
@@ -346,17 +288,6 @@ namespace MarcoZechner.CommandApi
             if (result == null)
                 return;
 
-            RichHudChatCommandAdapter richHudAdapter =
-                _richHudChatAdapter;
-
-            if (
-                richHudAdapter != null
-                && richHudAdapter.PresentResult(result)
-            )
-            {
-                return;
-            }
-
             VanillaChatCommandAdapter vanillaAdapter =
                 _chatAdapter;
 
@@ -402,30 +333,9 @@ namespace MarcoZechner.CommandApi
             );
         }
 
-        private CommandStatusSnapshot
-            BuildStatusSnapshot()
+        private CommandStatusSnapshot BuildStatusSnapshot()
         {
-            RichHudChatCommandAdapter adapter =
-                _richHudChatAdapter;
-
-            bool richHudChatAvailable =
-                adapter != null
-                && adapter.IsConnected;
-
-            string presentationAdapter =
-                richHudChatAvailable
-                    ? "RichHudChatAPI"
-                    : _presentationAdapter;
-
-            return new CommandStatusSnapshot(
-                ModVersionFile.VersionString,
-                ApiVersionFile.VersionString,
-                ProtocolVersion,
-                _networkState,
-                richHudChatAvailable,
-                presentationAdapter,
-                0
-            );
+            return new CommandStatusSnapshot(ModVersionFile.VersionString, ApiVersionFile.VersionString, ProtocolVersion, _networkState, _presentationAdapter, 0);
         }
 
         private void DisposeRuntime()
@@ -434,12 +344,6 @@ namespace MarcoZechner.CommandApi
             {
                 _apiProvider.Dispose();
                 _apiProvider = null;
-            }
-
-            if (_richHudChatAdapter != null)
-            {
-                _richHudChatAdapter.Dispose();
-                _richHudChatAdapter = null;
             }
 
             if (_chatAdapter != null)

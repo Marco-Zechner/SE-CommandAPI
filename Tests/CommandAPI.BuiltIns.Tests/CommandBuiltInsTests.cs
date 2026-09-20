@@ -260,7 +260,6 @@ namespace MarcoZechner.CommandApi.Tests
                     "Protocol version: 1.0.0",
                     "Registered commands: 5",
                     "Network: Not initialized",
-                    "RichHudChat: unavailable",
                     "Presentation: VanillaChat",
                     "External providers: 0"
                 },
@@ -285,7 +284,6 @@ namespace MarcoZechner.CommandApi.Tests
                             "1.2.0",
                             "1.0.0",
                             "Not initialized",
-                            false,
                             "VanillaChat",
                             0
                         );

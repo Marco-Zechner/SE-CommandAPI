@@ -379,11 +379,6 @@ namespace MarcoZechner.CommandApi.Core
                 );
             }
 
-            string richHudState =
-                snapshot.RichHudChatAvailable
-                    ? "available"
-                    : "unavailable";
-
             return new CommandResult(
                 true,
                 "CommandAPI status",
@@ -400,8 +395,6 @@ namespace MarcoZechner.CommandApi.Core
                         + registry.Count,
                     "Network: "
                         + snapshot.NetworkState,
-                    "RichHudChat: "
-                        + richHudState,
                     "Presentation: "
                         + snapshot.PresentationAdapter,
                     "External providers: "
