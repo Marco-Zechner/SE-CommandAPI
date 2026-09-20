@@ -11,7 +11,8 @@ CommandAPI supports:
 - multiple top-level command prefixes such as `/cmd` or `/config`;
 - command names and aliases scoped within each prefix;
 - shared prefixes, with collisions enforced at command and alias level;
-- client-local, authoritative-server, either-side, and internal execution locations;
+- client-local, authoritative-server, and either-side execution locations;
+- `Internal` is reserved for CommandAPI implementation use and cannot be registered by consumers;
 - local execution for `Client` and normal `Either` submissions;
 - authoritative networking for `Server` submissions;
 - requester-only structured command results;

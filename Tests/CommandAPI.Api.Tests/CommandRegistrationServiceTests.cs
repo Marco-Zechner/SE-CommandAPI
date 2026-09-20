@@ -239,6 +239,19 @@ namespace MarcoZechner.CommandApi.Tests
         }
 
         [Fact]
+        public void RegisterRejectsInternalExecutionLocationWithoutMutation()
+        {
+            var registry = new CommandRegistry();
+            var service = new CommandRegistrationService(registry);
+            IDictionary<string, object> metadata = MinimalMetadata("internal");
+            metadata["ExecutionLocation"] = "Internal";
+
+            Assert.Throws<ArgumentException>(delegate { service.RegisterCommand(metadata, SuccessHandler); });
+            Assert.Equal(0, registry.Count);
+            Assert.Equal(0, service.ExternalProviderCount);
+        }
+
+        [Fact]
         public void RegisterRejectsDuplicateCommandName()
         {
             var registry =

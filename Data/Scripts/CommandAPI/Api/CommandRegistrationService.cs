@@ -64,6 +64,9 @@ namespace MarcoZechner.CommandApi.Api
                         CommandExecutionLocation.Server
                     );
 
+            if (executionLocation == CommandExecutionLocation.Internal)
+                throw new ArgumentException("The Internal execution location is reserved for CommandAPI.", nameof(metadata));
+
             string canonicalName =
                 ReadRequiredString(
                     metadata,

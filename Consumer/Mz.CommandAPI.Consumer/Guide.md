@@ -153,8 +153,9 @@ Use `Client` for commands whose work belongs only to the local client.
 Use `Either` when the command can execute on the submission side without
 requiring authoritative server execution.
 
-`Internal` exists in the shared command contract but is normally reserved for
-CommandAPI-owned implementation commands rather than downstream user commands.
+`Internal` is reserved for CommandAPI implementation use. Public consumer
+registrations using it are rejected, and consumer handlers cannot execute under
+that location.
 
 The handler can inspect `CommandRequest.IsServer` to see which side is
 executing it.
